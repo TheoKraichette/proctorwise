@@ -184,14 +184,19 @@ reservationservice/
 
 ---
 
-## 8. Conclusion
+## 8. Développement agile
+Le projet est prévu pour être développé de façon agile, avec des itérations courtes (type Scrum ou Kanban). L’architecture s’y prête bien :
+Les services sont indépendants, donc facilement répartis entre équipes
+Les cas d’usage sont bien définis, ce qui aide à découper les tâches en user stories
+Le respect des principes DDD et Clean Architecture favorise la clarté du code dès le départ
+Le projet est pensé pour TDD, avec une logique métier isolée et testable
+Cette approche permet de livrer des fonctionnalités de façon continue, sans sacrifier la qualité logicielle, tout en s’adaptant facilement aux retours utilisateurs et aux priorités métiers.
 
+## 9. Conclusion
 Cette architecture modulaire et robuste répond aux exigences métier en matière de :
 
 * Haute disponibilité
 * Scalabilité
 * Résilience des traitements
-
-Elle repose sur des standards éprouvés et une structuration claire, garantissant maintenabilité et évolutivité pour la plateforme ProctorWise.
 
 ---
