@@ -58,30 +58,30 @@ Chaque service couvre un **Bounded Context** (contexte borné) défini selon DDD
 
 ### 3.2 Diagramme de classes modulaire
 
-![Diagramme de séquence](images\DDC_modulaire.png)
+![Diagramme de séquence](images/DDC_modulaire.png)
 
 
 ### 3.3 Diagramme de séquence – Création d'une réservation
 
-![Diagramme de séquence](images\sequence_reservation.png)
+![Diagramme de séquence](images/sequence_reservation.png)
 
 ### 3.4 Context map (bounded context)
 
-![Diagramme de séquence](images\service-1-2.png)
-![Diagramme de séquence](images\service-3-4.png)
-![Diagramme de séquence](images\service-5-6.png)
+![Diagramme de séquence](images/service-1-2.png)
+![Diagramme de séquence](images/service-3-4.png)
+![Diagramme de séquence](images/service-5-6.png)
 
 
 ### 3.5 Vues C4 (extraits)
 
 * **C1 – Vue système** : 
-![Diagramme de séquence](images\C1.png)
+![Diagramme de séquence](images/C1.png)
 
 * **C2 – Conteneurs** : 
-![Diagramme de séquence](images\C2.png)
+![Diagramme de séquence](images/C2.png)
 
 * **C3 – Composants** : 
-![Diagramme de séquence](images\C3.png)
+![Diagramme de séquence](images/C3.png)
 
 
 ---
