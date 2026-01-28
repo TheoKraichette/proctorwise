@@ -36,6 +36,8 @@ class LoginUser:
     def _create_token(self, user: User) -> str:
         payload = {
             "sub": user.user_id,
+            "user_id": user.user_id,
+            "name": user.name,
             "email": user.email,
             "role": user.role,
             "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)

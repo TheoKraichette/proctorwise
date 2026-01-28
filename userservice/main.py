@@ -84,6 +84,7 @@ async def home():
                     <option value="student">Etudiant</option>
                     <option value="teacher">Enseignant</option>
                     <option value="proctor">Surveillant</option>
+                    <option value="admin">Administrateur</option>
                 </select>
             </div>
             <button type="submit">S'inscrire</button>
@@ -124,14 +125,11 @@ async def home():
 
                 if (res.ok) {
                     localStorage.setItem('token', data.access_token);
-                    showMessage('Connexion reussie!');
-                    document.getElementById('userInfo').innerHTML = `
-                        <h3>Bienvenue, ${data.user.name}!</h3>
-                        <p><strong>Email:</strong> ${data.user.email}</p>
-                        <p><strong>Role:</strong> ${data.user.role}</p>
-                        <p><strong>ID:</strong> ${data.user.user_id}</p>
-                    `;
-                    document.getElementById('userInfo').classList.remove('hidden');
+                    showMessage('Connexion reussie! Redirection...');
+                    // Redirect to ReservationService with token
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:8000?token=' + encodeURIComponent(data.access_token);
+                    }, 1000);
                 } else {
                     showMessage(data.detail || 'Erreur de connexion', true);
                 }

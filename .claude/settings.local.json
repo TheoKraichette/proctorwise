@@ -6,7 +6,8 @@
       "Bash(timeout:*)",
       "Bash(curl:*)",
       "Bash(docker exec:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(docker restart:*)"
     ]
   }
 }
