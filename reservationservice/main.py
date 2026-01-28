@@ -235,12 +235,12 @@ async def home():
                             </div>
                             <div id="mcqOptions">
                                 <div class="form-row">
-                                    <div class="form-group"><label>Option A</label><input type="text" id="optionA" required></div>
-                                    <div class="form-group"><label>Option B</label><input type="text" id="optionB" required></div>
+                                    <div class="form-group"><label>Option A</label><input type="text" id="optionA"></div>
+                                    <div class="form-group"><label>Option B</label><input type="text" id="optionB"></div>
                                 </div>
                                 <div class="form-row">
-                                    <div class="form-group"><label>Option C</label><input type="text" id="optionC" required></div>
-                                    <div class="form-group"><label>Option D</label><input type="text" id="optionD" required></div>
+                                    <div class="form-group"><label>Option C</label><input type="text" id="optionC"></div>
+                                    <div class="form-group"><label>Option D</label><input type="text" id="optionD"></div>
                                 </div>
                             </div>
                             <div class="form-group">
@@ -649,7 +649,11 @@ async def home():
 
         function updateQuestionForm() {
             const type = document.getElementById('questionType').value;
-            document.getElementById('mcqOptions').classList.toggle('hidden', type === 'true_false');
+            const isMcq = type !== 'true_false';
+            document.getElementById('mcqOptions').classList.toggle('hidden', !isMcq);
+            ['optionA', 'optionB', 'optionC', 'optionD'].forEach(id => {
+                document.getElementById(id).required = isMcq;
+            });
             const correctSelect = document.getElementById('correctAnswer');
             if (type === 'true_false') {
                 correctSelect.innerHTML = '<option value="True">Vrai</option><option value="False">Faux</option>';
