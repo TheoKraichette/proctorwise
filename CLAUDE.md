@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ProctorWise is an online exam proctoring platform built with Python microservices. It handles exam slot reservations, real-time proctoring with anomaly detection (hybrid ML/rule-based), grading, notifications, and analytics reporting.
+ProctorWise is an online exam proctoring platform built with Python microservices. It handles exam creation with questions, slot reservations, exam taking with auto-grading, real-time proctoring with anomaly detection, and analytics reporting.
 
 ## Architecture
 
@@ -22,17 +22,26 @@ Each microservice follows a 4-layer structure:
 
 | Role | Capabilities |
 |------|-------------|
-| **student** | Reserve exam slots, take exams, view results |
-| **teacher** | Create exams, view submissions, grade exams |
+| **student** | Reserve exam slots, take exams with timer, view confirmation after submission |
+| **teacher** | Create exams, add QCM/True-False questions, view results, consult detailed student submissions |
 | **proctor** | Receive anomaly alerts, real-time monitoring |
 | **admin** | Access statistics, manage users and roles |
+
+## Test Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Student | alice@student.com | password123 |
+| Teacher | bob@teacher.com | password123 |
+| Proctor | charlie@proctor.com | password123 |
+| Admin | diana@admin.com | password123 |
 
 ## Services
 
 | Service | Port | Database | Description |
 |---------|------|----------|-------------|
 | **userservice/** | 8001 | proctorwise_users | User auth (JWT, bcrypt), roles, redirect after login |
-| **reservationservice/** | 8000 | proctorwise_reservations | Exam CRUD + reservation management, role-based UI |
+| **reservationservice/** | 8000 | proctorwise_reservations | Exams, Questions, Reservations, role-based UI |
 | **monitoringservice/** | 8003 | proctorwise_monitoring | Real-time proctoring with ML anomaly detection |
 | **correctionservice/** | 8004 | proctorwise_corrections | Exam grading (auto MCQ + manual) |
 | **notificationservice/** | 8005 | proctorwise_notifications | Email (SMTP) and WebSocket notifications |
@@ -43,65 +52,73 @@ Each microservice follows a 4-layer structure:
 The project runs entirely with Docker Compose. All 17 containers are configured:
 
 ```bash
-# Start all services
-docker compose up -d
-
-# Rebuild a specific service
-docker compose up -d --build <service>
-
-# View logs
-docker compose logs -f <service>
-
-# Check status
-docker compose ps
+docker compose up -d                    # Start all
+docker compose up -d --build <service>  # Rebuild service
+docker compose logs -f <service>        # View logs
+docker compose ps                       # Check status
 ```
-
-### Container URLs
-
-| Service | URL |
-|---------|-----|
-| UserService | http://localhost:8001 |
-| ReservationService | http://localhost:8000 |
-| MonitoringService | http://localhost:8003 |
-| CorrectionService | http://localhost:8004 |
-| NotificationService | http://localhost:8005 |
-| AnalyticsService | http://localhost:8006 |
-| Airflow | http://localhost:8082 (admin/admin) |
-| Kafka UI | http://localhost:8080 |
-| Adminer (DB) | http://localhost:8083 |
-| MailHog | http://localhost:8025 |
-| HDFS UI | http://localhost:9870 |
-| Spark UI | http://localhost:8081 |
 
 ## Authentication Flow
 
 1. User registers/logs in at UserService (http://localhost:8001)
 2. JWT token generated with: `user_id`, `name`, `email`, `role`, `exp`
 3. After login, automatic redirect to ReservationService with token in URL
-4. ReservationService parses JWT and shows role-appropriate UI:
-   - **Student**: Exam dropdown, reservation form, my reservations
-   - **Teacher**: Create exam form, my exams list
-   - **Proctor**: Link to MonitoringService
-   - **Admin**: Links to Analytics and user management
+4. ReservationService parses JWT and shows role-appropriate UI
 
-## Communication
+## Exam Flow
 
-- **REST (FastAPI)** for synchronous operations
-- **Kafka** for async events:
-  - `exam_scheduled`, `exam_cancelled` (ReservationService)
-  - `monitoring_started`, `monitoring_stopped`, `anomaly_detected`, `high_risk_alert` (MonitoringService)
-  - `exam_submitted`, `grading_completed`, `manual_review_required` (CorrectionService)
-- **WebSocket** for real-time streaming (MonitoringService) and notifications (NotificationService)
+### Teacher creates exam with questions:
+1. Login as teacher (bob@teacher.com)
+2. "Creer examen" tab → Create exam (title, duration)
+3. "Gerer questions" tab → Select exam → Add questions (QCM or True/False)
+4. "Resultats" tab → Select exam → View student submissions → Click "Details" for full breakdown
 
-## ReservationService - Exam Management
+### Student takes exam:
+1. Login as student (alice@student.com)
+2. "Reserver" tab → Select exam → Choose date/time
+3. "Mes Reservations" tab → Click "Passer" to start
+4. Answer questions (timer counting down)
+5. Click "Terminer" → Automatic grading → Confirmation message
+6. Reservation status changes to "completed" (cannot retake)
 
-New endpoints for exam CRUD:
-- `POST /exams/` - Create exam (teacher)
-- `GET /exams/` - List all active exams
-- `GET /exams/{exam_id}` - Get exam details
-- `GET /exams/teacher/{teacher_id}` - List exams by teacher
-- `PUT /exams/{exam_id}` - Update exam
-- `DELETE /exams/{exam_id}` - Soft delete exam
+## ReservationService - Data Model
+
+### Exam
+- `exam_id`, `title`, `description`, `duration_minutes`, `teacher_id`, `status`
+
+### Question
+- `question_id`, `exam_id`, `question_number`, `question_type` (mcq/true_false)
+- `question_text`, `option_a`, `option_b`, `option_c`, `option_d`
+- `correct_answer`, `points`
+
+### Reservation
+- `reservation_id`, `user_id`, `exam_id`, `start_time`, `end_time`, `status`
+
+## Key Endpoints
+
+### ReservationService (8000)
+```
+POST /exams/                           - Create exam (teacher)
+GET  /exams/                           - List all active exams
+GET  /exams/{exam_id}                  - Get exam details
+GET  /exams/teacher/{teacher_id}       - List teacher's exams
+POST /exams/{exam_id}/questions/       - Add question
+POST /exams/{exam_id}/questions/bulk   - Add multiple questions
+GET  /exams/{exam_id}/questions        - List questions (no answers)
+GET  /exams/{exam_id}/questions/with-answers - List with answers (teacher)
+POST /reservations/                    - Create reservation
+GET  /reservations/user/{user_id}      - List user's reservations
+PATCH /reservations/{id}/status?status=X - Update reservation status
+```
+
+### CorrectionService (8004)
+```
+POST /corrections/submissions          - Submit exam answers
+POST /corrections/submissions/{id}/grade - Auto-grade submission
+GET  /corrections/submissions/{id}/result - Get detailed results
+GET  /corrections/submissions/exam/{exam_id} - List submissions by exam
+GET  /corrections/submissions/user/{user_id} - List submissions by user
+```
 
 ## Anomaly Detection (MonitoringService)
 
@@ -115,37 +132,21 @@ Hybrid ML/rule-based detection system:
 | Tab change | Rule | medium |
 | Webcam disabled | Rule | critical |
 
-ML Detectors:
-- **MediaPipeFaceDetector** - Face detection (used by default)
-- **YOLOObjectDetector** - Object detection (cell phone=67, book=73, laptop=63)
-- **HybridDetector** - Combines MediaPipe (faces) + YOLO (objects)
-
 ## Big Data Stack
 
-### Storage
 - **MariaDB** - Single node (proctorwise_* databases)
-- **HDFS** - Frame storage, processed reports, ML models
-
-### Processing
+- **HDFS** - Frame storage, processed reports
 - **Apache Spark** - Batch jobs with MySQL JDBC driver
-- Jobs in `spark-jobs/batch/`:
-  - `daily_anomaly_aggregation.py` - Daily anomaly aggregation (2h AM)
-  - `weekly_grade_analytics.py` - Weekly grade statistics (Sunday 3h AM)
-  - `monthly_user_performance.py` - Monthly user performance (1st of month 5h AM)
+- **Apache Airflow** - DAGs orchestration
 
-### Orchestration
-- **Apache Airflow** - DAGs in `airflow/dags/proctorwise_spark_jobs.py`
-- 4 DAGs: daily_anomaly_aggregation, weekly_grade_analytics, monthly_user_performance, full_analytics_pipeline
+### Spark Jobs
+- `daily_anomaly_aggregation.py` - Daily at 2h AM
+- `weekly_grade_analytics.py` - Sunday at 3h AM
+- `monthly_user_performance.py` - 1st of month at 5h AM
 
 ## Common Commands
 
 ```bash
-# Docker commands
-docker compose up -d                    # Start all
-docker compose up -d --build <service>  # Rebuild service
-docker compose logs -f <service>        # View logs
-docker compose ps                       # Check status
-
 # Database access
 docker exec -it proctorwise-mariadb mysql -uproctorwise -pproctorwise_secret
 
@@ -156,87 +157,39 @@ docker exec proctorwise-kafka kafka-topics --list --bootstrap-server localhost:9
 docker exec proctorwise-namenode hdfs dfs -ls -R /proctorwise
 
 # Airflow
-docker exec proctorwise-airflow airflow dags list
 docker exec proctorwise-airflow airflow dags trigger full_analytics_pipeline
-
-# Spark job manual execution
-docker exec proctorwise-airflow docker exec proctorwise-spark-master \
-  /opt/spark/bin/spark-submit \
-  --master spark://spark-master:7077 \
-  --jars /opt/spark/jars/mysql-connector-j-8.0.33.jar \
-  /opt/spark-jobs/batch/daily_anomaly_aggregation.py
 ```
 
 ## Key Dependencies
 
 ### All Services
-- **FastAPI** + **Uvicorn** - Web framework and ASGI server
-- **SQLAlchemy** + **pymysql** - ORM and MySQL driver (synchronous)
-- **aiokafka** - Async Kafka client
-- **Pydantic** - Request/response validation
-- **python-jose** - JWT encoding/decoding
-- **bcrypt** - Password hashing
+- **FastAPI** + **Uvicorn** - Web framework
+- **SQLAlchemy** + **pymysql** - ORM (synchronous)
+- **Pydantic** - Validation
+- **python-jose** + **bcrypt** - Auth
 
 ### MonitoringService
 - **ultralytics** (YOLO) - Object detection
 - **mediapipe** - Face detection
 - **opencv-python** - Image processing
 
-### NotificationService
-- **aiosmtplib** - Async email
-- **websockets** - Real-time notifications
+## Current UI Status
 
-### AnalyticsService
-- **reportlab** - PDF generation
-- **pandas** - Data processing
-
-## HDFS Structure
-
-```
-hdfs:///proctorwise/
-├── raw/frames/{year}/{month}/{day}/{session_id}/
-├── raw/recordings/{exam_id}/{session_id}/
-├── processed/anomaly_reports/{year}/{month}/
-├── processed/grading_results/{year}/{month}/
-├── processed/user_performance/{year}/{month}/
-├── ml/models/{model_type}/model_v{version}.pt
-└── archive/{year}/{month}/
-```
-
-## Development Notes
-
-- Database driver is **pymysql** (synchronous), not aiomysql
-- Repository pattern abstracts data access behind interfaces in `application/interfaces/`
-- Use cases receive dependencies via constructor injection
-- Each service has its own database (database-per-service pattern)
-- Feature flags allow local development without full infrastructure (see `.env.example`)
-
-### Current UI Status
-- **UserService**: Web interface OK (login/register with role selection)
-- **ReservationService**: Web interface OK (role-based views for student/teacher/proctor/admin)
+- **UserService**: Web interface OK (login/register with role selection, CORS enabled)
+- **ReservationService**: Web interface OK (full exam flow for student/teacher with results view)
 - **MonitoringService**: Needs web interface for proctor dashboard
-- **CorrectionService**: Needs web interface for teacher grading + student results
+- **CorrectionService**: Backend only (integrated via ReservationService UI for grading + results)
 - **NotificationService**: Needs web interface
 - **AnalyticsService**: Needs web interface for admin dashboard
 
-## Environment Variables
+## Recent Features
 
-Key variables in `docker-compose.yml`:
-
-```bash
-DATABASE_URL=mysql+pymysql://proctorwise:proctorwise_secret@mariadb:3306/proctorwise_<service>
-KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-JWT_SECRET_KEY=proctorwise_jwt_secret_change_in_prod
-USE_LOCAL_STORAGE=true       # Use local filesystem instead of HDFS
-USE_MOCK_SENDERS=true        # Mock email/WebSocket notifications
-ENABLE_KAFKA_CONSUMER=true   # Enable Kafka consumer in NotificationService
-```
+- Timer properly stops when exam is submitted
+- Confirmation message after submission (no score alert)
+- Reservation marked as "completed" after submission (prevents retake)
+- Teacher "Resultats" tab with student submissions list
+- Teacher can view detailed breakdown of each student's answers
 
 ## Current Tasks
 
-See `TASKS.md` for detailed task breakdown including:
-- Per-service tasks and status
-- Spark jobs testing
-- Airflow DAGs status
-- ML testing requirements
-- Team task distribution (Dev A / Dev B)
+See `TASKS.md` for detailed task breakdown.

@@ -79,3 +79,20 @@ def get_reservation(reservation_id: str):
         status=reservation.status,
         created_at=reservation.created_at
     )
+
+@router.patch("/{reservation_id}/status")
+def update_reservation_status(reservation_id: str, status: str):
+    reservation = repo.get_by_id(reservation_id)
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+    reservation.status = status
+    updated = repo.update(reservation)
+    return ReservationResponse(
+        reservation_id=updated.reservation_id,
+        user_id=updated.user_id,
+        exam_id=updated.exam_id,
+        start_time=updated.start_time,
+        end_time=updated.end_time,
+        status=updated.status,
+        created_at=updated.created_at
+    )
