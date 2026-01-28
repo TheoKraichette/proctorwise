@@ -1,7 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from typing import Optional
 
 class UserCreateRequest(BaseModel):
-    user_id: str
     name: str
     email: str
-    role: str
+    password: str
+    role: str = "student"
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str

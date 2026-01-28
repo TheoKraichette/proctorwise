@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 @dataclass
 class Reservation:
@@ -9,3 +10,4 @@ class Reservation:
     start_time: datetime
     end_time: datetime
     status: str  # e.g. "scheduled", "cancelled", "confirmed"
+    created_at: Optional[datetime] = None

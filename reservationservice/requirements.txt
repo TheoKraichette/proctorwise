@@ -3,5 +3,5 @@ uvicorn
 sqlalchemy
 pydantic
 aiokafka
-aiomysql
+pymysql
 alembic

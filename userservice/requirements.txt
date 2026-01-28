@@ -2,7 +2,7 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
-aiomysql
+pymysql
 alembic
 python-jose[cryptography]
 bcrypt

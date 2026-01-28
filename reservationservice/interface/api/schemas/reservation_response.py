@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
+from typing import Optional
 
 class ReservationResponse(BaseModel):
     reservation_id: str
@@ -8,3 +9,4 @@ class ReservationResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     status: str
+    created_at: Optional[datetime] = None
