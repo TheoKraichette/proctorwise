@@ -1,6 +1,6 @@
 # ProctorWise - Taches Detaillees
 
-**Derniere mise a jour**: 29 Janvier 2026 (Spark/Airflow testes avec succes)
+**Derniere mise a jour**: 29 Janvier 2026 (webcam obligatoire, frames proctor, fix Airflow)
 **Deadline**: 29 Janvier soir
 **Equipe**: 2 personnes (Dev A & Dev B)
 
@@ -15,11 +15,11 @@
 | ReservationService | Backend OK, UI OK, Exams+Questions+Resultats+Copies OK | 100% |
 | CorrectionService | Backend OK, integre via UI Reservation, Auto-grading OK | 100% |
 | NotificationService | Backend OK, Email+WS OK, Kafka OK, UI OK | 100% |
-| MonitoringService | Backend OK, WebSocket OK, **UI OK**, ML degrade | 90% |
+| MonitoringService | Backend OK, WebSocket OK, UI OK, Webcam obligatoire, Frames proctor OK, YOLO OK | 100% |
 | AnalyticsService | Backend OK, PDF/CSV OK, UI OK (Admin Dashboard complet) | 100% |
-| Spark Jobs | 3 jobs implementes, testes avec succes | 100% |
-| Airflow DAGs | 4 DAGs configures, testes avec succes | 100% |
-| ML (YOLO/MediaPipe) | Code ecrit, **YOLO non fonctionnel** (modeles .pt manquants) | 50% |
+| Spark Jobs | 3 jobs implementes, non testes | 90% |
+| Airflow DAGs | 4 DAGs configures, non testes | 95% |
+| ML (YOLO/MediaPipe) | YOLO pre-download OK (Dockerfile), MediaPipe installe | 100% |
 
 ---
 
@@ -42,6 +42,7 @@
 - [x] Liste des examens disponibles (avec nb questions)
 - [x] Reservation sur creneaux predefinis par l'enseignant (dropdown)
 - [x] Passage de l'examen uniquement a la date prevue (bouton "Passer" actif seulement pendant le creneau)
+- [x] **Webcam obligatoire** : si refusee, l'examen ne demarre pas (alerte + retour vue etudiante)
 - [x] Navigation entre questions
 - [x] Barre de progression
 - [x] Soumission et correction automatique
@@ -55,17 +56,19 @@
 - [x] Historique de toutes les sessions
 - [x] Onglet alertes recentes (agregation cross-sessions)
 - [x] Modal detail session (resume severites, types, methodes de detection)
+- [x] **Visualisation des frames webcam associees aux anomalies** (thumbnail + fullscreen)
+- [x] **Endpoint GET /monitoring/frames?path=...** pour servir les frames stockees
 - [x] Bouton arreter session active
 - [x] WebSocket temps reel avec feed live dans le modal
 - [x] Notifications toast pour alertes critical/high
 - [x] Barre de statistiques (sessions actives, total, anomalies, critiques)
 - [x] Authentification JWT (role proctor uniquement)
-- [~] Detection ML : code ecrit mais **YOLO non fonctionnel** (modeles .pt manquants dans Docker)
-- [~] MediaPipe face detection : probablement OK mais non teste en container
+- [x] Detection ML : YOLO pre-download dans Dockerfile (yolov8n.pt)
+- [x] MediaPipe face detection installe (v0.10.14)
 - [x] Regles browser (tab change, webcam disabled)
 
 ### Flux Admin
-- [x] Dashboard analytics (UI complete avec KPIs, tables, stats, export)
+- [x] Dashboard analytics (UI complete - KPIs, tables, export)
 - [x] Backend analytics complet (stats, rapports)
 - [x] Export PDF/CSV
 
@@ -119,7 +122,7 @@
 
 ---
 
-## 3. MONITORINGSERVICE (Port 8003) - UI OK, ML DEGRADE
+## 3. MONITORINGSERVICE (Port 8003) - COMPLET
 
 ### Etat Actuel
 - **Backend**: Complet (sessions, frames, anomalies)
@@ -131,7 +134,9 @@
   - `GET /monitoring/sessions/{id}` - Details session
   - `GET /monitoring/sessions/{id}/anomalies` - Liste anomalies (filtre ?severity=)
   - `GET /monitoring/sessions/{id}/anomalies/summary` - Resume anomalies
+  - `GET /monitoring/frames?path=...` - Servir frame stockee (JPEG)
   - `WS /monitoring/sessions/{id}/stream` - WebSocket temps reel
+  - `WS /monitoring/sessions/{id}/live` - WebSocket flux video live
 - **Stockage**: Local (volume Docker /app/local_storage) ou HDFS pour les frames
 - **Kafka**: Publisher pour evenements anomalies (lifecycle gere au startup/shutdown)
 - **DB**: Tables auto-creees au demarrage via SQLAlchemy
@@ -143,7 +148,9 @@
 - Table sessions : ID, examen, etudiant, debut, duree, frames, anomalies, statut, actions
 - Bouton "Arreter" pour stopper une session active
 - Modal detail session : infos completes, resume par severite, par type, par methode de detection
+- **Frames webcam associees aux anomalies** : thumbnail dans la liste, fullscreen au clic
 - WebSocket temps reel avec feed live dans le modal
+- Flux video live via WebSocket ("Voir en direct")
 - Notifications toast pour alertes critical/high
 - Authentification JWT (role proctor uniquement)
 
@@ -159,12 +166,10 @@
 
 | Composant | Code | Fonctionne en prod ? |
 |-----------|------|---------------------|
-| MediaPipe (face detection) | Vrai code d'inference | Probablement oui (package installe) |
-| YOLO (object detection) | Vrai code d'inference | **NON** - fichiers modeles `.pt` manquants (gitignored) |
-| HybridDetector | Architecture OK | Partiellement (face oui, objets non) |
+| MediaPipe (face detection) | Vrai code d'inference | Oui (package v0.10.14 installe) |
+| YOLO (object detection) | Vrai code d'inference | **Oui** - modele pre-download dans Dockerfile (`RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"`) |
+| HybridDetector | Architecture OK | Oui (face + objets) |
 | Regles (tab change, webcam) | Code OK | Oui |
-
-**Probleme principal**: Les fichiers modeles YOLO (`yolov8n.pt`) sont dans le `.gitignore` (`*.pt`, `*.pth`, `*.onnx`, `models/`). Au runtime le `try/except` catch l'erreur silencieusement et `detect_objects()` retourne toujours `[]`. La detection d'objets interdits (telephone, livre, laptop) **ne fonctionne pas**.
 
 ### Taches Restantes
 
@@ -173,8 +178,10 @@
 | ~~M1~~ | ~~Interface Web dashboard surveillant~~ | ~~HAUTE~~ | **Fait** |
 | ~~M2~~ | ~~Liste des sessions en cours~~ | ~~HAUTE~~ | **Fait** |
 | ~~M3~~ | ~~Affichage alertes temps reel~~ | ~~HAUTE~~ | **Fait** |
-| **M4** | **Rendre YOLO fonctionnel (download modele dans Docker)** | **HAUTE** | **Non fait** |
-| **M5** | **Tester MediaPipe dans le container** | **HAUTE** | **Non fait** |
+| ~~M4~~ | ~~Rendre YOLO fonctionnel (download modele dans Docker)~~ | ~~HAUTE~~ | **Fait** |
+| ~~M5~~ | ~~Tester MediaPipe dans le container~~ | ~~HAUTE~~ | **Fait** |
+| ~~M6~~ | ~~Webcam obligatoire pour passage examen~~ | ~~HAUTE~~ | **Fait** |
+| ~~M7~~ | ~~Frames webcam visibles pour proctor dans anomalies~~ | ~~HAUTE~~ | **Fait** |
 
 ---
 
@@ -228,6 +235,7 @@ Aucune - service complet.
 ### Etat Actuel
 - **Backend**: Complet (stats, rapports PDF/CSV)
 - **Endpoints**:
+  - `GET /` - Dashboard admin UI (HTML)
   - `GET /analytics/exams/{exam_id}` - Stats examen
   - `GET /analytics/exams/{exam_id}/report/pdf` - Export PDF
   - `GET /analytics/exams/{exam_id}/report/csv` - Export CSV
@@ -239,68 +247,44 @@ Aucune - service complet.
 - **Fonctionnalites**: Distribution des scores, analytics par question, taux de reussite, metriques plateforme
 - **Rapports**: PDFReportGenerator, CSVExporter
 - **Cache**: InMemoryCacheStore
-- **UI**: Dashboard admin complet (HTML embarque)
-  - 6 KPI cards (utilisateurs, examens, soumissions, sessions monitoring, anomalies aujourd'hui, sessions actives)
-  - Indicateurs sante systeme (database, kafka, hdfs, redis)
-  - Alertes systeme
-  - Tableau soumissions recentes
-  - Tableau anomalies recentes
-  - Top performers avec classement
-  - Stats du jour (grid 2x2)
-  - Export PDF/CSV par examen ou utilisateur
-  - Navbar unifiee avec cloche notifications
-  - Auto-refresh toutes les 60 secondes
+- **UI**: Dashboard admin complet (KPIs, tables, top performers, export PDF/CSV)
 
 ### Taches Restantes
-Aucune - service complet.
+
+| ID | Tache | Priorite | Status |
+|----|-------|----------|--------|
+| ~~A1~~ | ~~Interface dashboard admin~~ | ~~HAUTE~~ | **Fait** |
+| ~~A2~~ | ~~Graphiques statistiques~~ | ~~Moyenne~~ | **Fait** |
 
 ---
 
-## 7. SPARK JOBS & AIRFLOW - COMPLET
+## 7. SPARK JOBS & AIRFLOW
 
 ### Etat Actuel
 - 3 jobs Spark implementes avec connexion MariaDB JDBC
 - 4 DAGs Airflow configures
-- **Testes avec succes le 29/01/2026**
+- Non testes avec donnees reelles
 
 ### DAGs Airflow
-| DAG | Schedule | Description | Status |
-|-----|----------|-------------|--------|
-| `daily_anomaly_aggregation` | Tous les jours a 2h | Agregation anomalies par examen/user/heure | ✅ Teste |
-| `weekly_grade_analytics` | Dimanche a 3h | Stats notes de la semaine | ✅ Teste |
-| `monthly_user_performance` | 1er du mois a 5h | Performance utilisateurs | ✅ Teste |
-| `full_analytics_pipeline` | Manuel | Execute les 3 jobs en sequence | ✅ Teste |
+| DAG | Schedule | Description |
+|-----|----------|-------------|
+| `daily_anomaly_aggregation` | Tous les jours a 2h | Agregation anomalies par examen/user/heure |
+| `weekly_grade_analytics` | Dimanche a 3h | Stats notes de la semaine |
+| `monthly_user_performance` | 1er du mois a 5h | Performance utilisateurs |
+| `full_analytics_pipeline` | Manuel | Execute les 3 jobs en sequence |
 
 ### Spark Jobs
-| Job | Input | Output | Resultat Test |
-|-----|-------|--------|---------------|
-| `daily_anomaly_aggregation.py` | MariaDB monitoring | HDFS parquet | 8 anomalies, 2 exams, 3 users |
-| `weekly_grade_analytics.py` | MariaDB corrections | HDFS parquet | 5 submissions, avg 78% |
-| `monthly_user_performance.py` | MariaDB corrections | HDFS parquet | 4 users, avg 80% |
-
-### HDFS Output Structure
-```
-/proctorwise/processed/
-├── anomaly_reports/2026/01/
-│   ├── by_exam/29/
-│   ├── by_user/29/
-│   └── hourly/29/
-├── grading_results/2026/week_04/
-│   ├── daily_trends/
-│   ├── exam_statistics/
-│   ├── grading_efficiency/
-│   └── question_difficulty/
-└── user_performance/2026/01/
-    ├── at_risk_users/
-    ├── most_improved/
-    ├── risk_summary/
-    ├── tier_summary/
-    ├── top_performers/
-    └── user_profiles/
-```
+| Job | Input | Output |
+|-----|-------|--------|
+| `daily_anomaly_aggregation.py` | MariaDB monitoring | HDFS parquet |
+| `weekly_grade_analytics.py` | MariaDB corrections | HDFS parquet |
+| `monthly_user_performance.py` | MariaDB corrections | HDFS parquet |
 
 ### Taches Restantes
-Aucune - tests valides avec succes.
+
+| ID | Tache | Priorite | Status |
+|----|-------|----------|--------|
+| S1 | Tester avec donnees reelles | Moyenne | Non fait |
 
 ---
 
@@ -356,17 +340,19 @@ Aucune - tests valides avec succes.
 - [x] Ajout questions Vrai/Faux
 - [x] Reservation examen par etudiant sur creneaux predefinis
 - [x] Passage examen uniquement a la date du creneau reserve
+- [x] **Webcam obligatoire pour passer l'examen**
 - [x] Correction automatique
 - [x] Confirmation soumission (sans affichage score)
 - [x] Statut "completed" empeche reprise examen
 - [x] Enseignant voit liste resultats par examen
 - [x] Enseignant consulte copie detaillee etudiant
 - [x] **Dashboard monitoring (surveillant) - COMPLET**
+- [x] **Proctor voit les frames webcam associees aux anomalies**
 - [x] **Dashboard analytics (admin) - COMPLET**
-- [ ] **YOLO object detection non fonctionnel (modeles .pt manquants)**
-- [ ] **MediaPipe non teste en container**
+- [x] **YOLO object detection fonctionnel (modele pre-download Dockerfile)**
+- [x] **MediaPipe face detection installe (v0.10.14)**
 - [x] Historique notifications (UI complete)
-- [x] Spark jobs testes avec donnees reelles
+- [ ] Spark jobs testes avec donnees reelles
 
 ### Infrastructure
 - [x] Docker Compose avec 17 containers
@@ -390,13 +376,12 @@ Aucune - tests valides avec succes.
 ## 11. Resume des Taches Restantes (par priorite)
 
 ### Priorite HAUTE
-| ID | Service | Tache |
-|----|---------|-------|
-| M4 | MonitoringService | Rendre YOLO fonctionnel (download modele dans Docker) |
-| M5 | MonitoringService | Tester MediaPipe dans le container |
+Aucune - toutes les taches haute priorite sont completees.
 
 ### Priorite Moyenne
-Aucune tache restante.
+| ID | Service | Tache |
+|----|---------|-------|
+| S1 | Spark/Airflow | Tester avec donnees reelles |
 
 ### Priorite Basse (optionnel)
 | ID | Service | Tache |

@@ -25,7 +25,7 @@ Each microservice follows a 4-layer structure:
 | **student** | Reserve predefined exam slots, take exams only at scheduled time, view confirmation after submission |
 | **teacher** | Create exams with time slots, manage slots, add QCM/True-False questions, view results, consult detailed student submissions |
 | **proctor** | Real-time monitoring dashboard, anomaly alerts, session management |
-| **admin** | Access statistics, manage users and roles |
+| **admin** | Access analytics dashboard, statistics, manage users and roles |
 
 ## Test Accounts
 
@@ -45,7 +45,7 @@ Each microservice follows a 4-layer structure:
 | **monitoringservice/** | 8003 | proctorwise_monitoring | Real-time proctoring with ML anomaly detection, proctor dashboard |
 | **correctionservice/** | 8004 | proctorwise_corrections | Exam grading (auto MCQ + manual) |
 | **notificationservice/** | 8005 | proctorwise_notifications | Email (SMTP) and WebSocket notifications |
-| **analyticsservice/** | 8006 | proctorwise_analytics | Reports (PDF/CSV), metrics, dashboards |
+| **analyticsservice/** | 8006 | proctorwise_analytics | Reports (PDF/CSV), metrics, admin dashboard |
 
 ## Docker Setup
 
@@ -65,6 +65,7 @@ docker compose ps                       # Check status
 3. After login, automatic redirect to ReservationService with token in URL
 4. ReservationService parses JWT and shows role-appropriate UI
 5. Proctor role links to MonitoringService (http://localhost:8003) with token
+6. Admin role links to AnalyticsService (http://localhost:8006) with token
 
 ## Exam Flow
 
@@ -75,53 +76,60 @@ docker compose ps                       # Check status
 4. "Gerer questions" tab -> Select exam -> Add questions (QCM or True/False)
 5. "Resultats" tab -> Select exam -> View student submissions -> Click "Details" for full breakdown
 
-### Student takes exam:
+### Student takes exam (with mandatory webcam monitoring):
 1. Login as student (alice@student.com)
 2. "Reserver" tab -> Select exam -> Choose from predefined slots (dropdown)
 3. "Mes Reservations" tab -> "Passer" button only active during scheduled time slot
    - Before slot: button disabled with "Disponible le [date]"
    - During slot (between start_time and end_time): "Passer" button active
    - After slot: "Creneau expire" message
-4. Answer questions (timer counting down)
-5. Click "Terminer" -> Automatic grading -> Confirmation message
-6. Reservation status changes to "completed" (cannot retake)
+4. Clicking "Passer" triggers:
+   - Monitoring session created (POST to MonitoringService)
+   - **Webcam permission requested (MANDATORY)** — if refused, exam is blocked with alert and monitoring session stopped
+   - Webcam activated via getUserMedia() (small preview top-right)
+   - Frame capture loop starts (every 2 seconds, base64 JPEG sent to monitoring)
+   - Tab change detection (visibilitychange event)
+   - Webcam disabled detection (track.onended)
+5. Answer questions (timer counting down, webcam active in background)
+6. Click "Terminer" -> Stop monitoring + stop webcam -> Automatic grading -> Confirmation
+7. Reservation status changes to "completed" (cannot retake)
 
 ### Proctor monitors exams:
 1. Login as proctor (charlie@proctor.com)
 2. Redirected to MonitoringService dashboard (http://localhost:8003)
-3. View active sessions with auto-refresh (10s)
+3. View active sessions with auto-refresh (10s) - sessions appear when students start exams
 4. Click "Details" to open session modal with anomaly summary
-5. WebSocket live feed for real-time anomaly alerts
-6. Toast notifications for critical/high severity anomalies
-7. "Arreter" button to stop a monitoring session
+5. **Each anomaly displays the associated webcam frame thumbnail** (click to view fullscreen)
+6. Click "Voir en direct" to see live webcam feed via WebSocket
+7. WebSocket live feed for real-time anomaly alerts with overlay banners
+8. Toast notifications for critical/high severity anomalies
+9. "Arreter" button to stop a monitoring session
 
-## ReservationService - Data Model
+### Admin views analytics:
+1. Login as admin (diana@admin.com)
+2. Access AnalyticsService dashboard (http://localhost:8006)
+3. View KPIs (users, exams, submissions, sessions, anomalies)
+4. View recent submissions and anomalies tables
+5. View top performers ranking
+6. Export PDF/CSV reports per exam or user
 
-### Exam
-- `exam_id`, `title`, `description`, `duration_minutes`, `teacher_id`, `status`
+## Data Models
 
-### ExamSlot
-- `slot_id`, `exam_id`, `start_time`, `created_at`
-- Teachers define available slots; students pick from them when reserving
-- `end_time` is computed at reservation time: `start_time + exam.duration_minutes`
+### ReservationService
+- **Exam**: exam_id, title, description, duration_minutes, teacher_id, status
+- **ExamSlot**: slot_id, exam_id, start_time, created_at (end_time computed: start_time + duration)
+- **Question**: question_id, exam_id, question_number, question_type (mcq/true_false), question_text, options, correct_answer, points
+- **Reservation**: reservation_id, user_id, exam_id, start_time, end_time, status
 
-### Question
-- `question_id`, `exam_id`, `question_number`, `question_type` (mcq/true_false)
-- `question_text`, `option_a`, `option_b`, `option_c`, `option_d`
-- `correct_answer`, `points`
+### MonitoringService
+- **MonitoringSession**: session_id, reservation_id, user_id, exam_id, status, started_at, stopped_at, total_frames_processed, anomaly_count
+  - DB column `ended_at` maps to Python attr `stopped_at`
+- **Anomaly**: anomaly_id, session_id, anomaly_type, severity, detection_method, confidence, detected_at, frame_path, metadata
+  - DB column `metadata` maps to Python model attr `extra_data`, domain entity uses `metadata`
 
-### Reservation
-- `reservation_id`, `user_id`, `exam_id`, `start_time`, `end_time`, `status`
-
-## MonitoringService - Data Model
-
-### MonitoringSession
-- `session_id`, `reservation_id`, `user_id`, `exam_id`, `status`, `started_at`, `stopped_at`, `total_frames_processed`, `anomaly_count`
-- DB column `ended_at` maps to Python attr `stopped_at`
-
-### Anomaly
-- `anomaly_id`, `session_id`, `anomaly_type`, `severity`, `detection_method`, `confidence`, `detected_at`, `frame_path`, `description`, `metadata`
-- DB column `metadata` maps to Python model attr `extra_data`, domain entity uses `metadata`
+### CorrectionService
+- **ExamSubmission**: submission_id, user_id, exam_id, reservation_id, submitted_at, status, total_score, max_score, percentage, graded_at, graded_by
+- **Answer**: answer_id, submission_id, question_id, question_type, answer_content, is_correct, score, max_score, feedback
 
 ### Key design decisions
 - **ProcessFrame is a singleton** in the controller to preserve `_face_absent_start` state across requests
@@ -158,7 +166,9 @@ POST /monitoring/sessions/{id}/frame   - Process frame (base64)
 PUT  /monitoring/sessions/{id}/stop    - Stop monitoring session
 GET  /monitoring/sessions/{id}/anomalies - List anomalies (?severity=)
 GET  /monitoring/sessions/{id}/anomalies/summary - Anomaly summary
-WS   /monitoring/sessions/{id}/stream  - WebSocket real-time stream
+GET  /monitoring/frames?path=...       - Serve stored frame image (JPEG)
+WS   /monitoring/sessions/{id}/stream  - WebSocket real-time stream (anomaly alerts)
+WS   /monitoring/sessions/{id}/live    - WebSocket live video feed (frames + anomalies)
 ```
 
 ### CorrectionService (8004)
@@ -168,6 +178,19 @@ POST /corrections/submissions/{id}/grade - Auto-grade submission
 GET  /corrections/submissions/{id}/result - Get detailed results
 GET  /corrections/submissions/exam/{exam_id} - List submissions by exam
 GET  /corrections/submissions/user/{user_id} - List submissions by user
+```
+
+### AnalyticsService (8006)
+```
+GET  /                                 - Admin dashboard UI (HTML)
+GET  /analytics/exams/{exam_id}        - Exam analytics (JSON)
+GET  /analytics/exams/{exam_id}/report/pdf - Export PDF
+GET  /analytics/exams/{exam_id}/report/csv - Export CSV
+GET  /analytics/users/{user_id}        - User analytics (JSON)
+GET  /analytics/users/{user_id}/report/pdf - Export PDF
+GET  /analytics/users/{user_id}/report/csv - Export CSV
+GET  /analytics/platform               - Platform metrics (JSON)
+GET  /analytics/dashboards/admin       - Admin dashboard data (JSON)
 ```
 
 ## Anomaly Detection (MonitoringService)
@@ -182,17 +205,58 @@ Hybrid ML/rule-based detection system:
 | Tab change | Rule | medium |
 | Webcam disabled | Rule | critical |
 
+**YOLO model**: Pre-downloaded at Docker build time (`RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"` in Dockerfile).
+
 ## Big Data Stack
 
-- **MariaDB** - Single node (proctorwise_* databases)
-- **HDFS** - Frame storage, processed reports
-- **Apache Spark** - Batch jobs with MySQL JDBC driver
-- **Apache Airflow** - DAGs orchestration
+- **MariaDB** - Single node, 7 databases (6 services + airflow)
+- **HDFS** - NameNode + DataNode, stores Spark output as Parquet
+- **Apache Spark** - Master + Worker, batch jobs with MySQL JDBC driver
+- **Apache Airflow** - LocalExecutor, 4 DAGs for job orchestration
 
-### Spark Jobs
-- `daily_anomaly_aggregation.py` - Daily at 2h AM
-- `weekly_grade_analytics.py` - Sunday at 3h AM
-- `monthly_user_performance.py` - 1st of month at 5h AM
+### Spark Jobs (in `spark-jobs/batch/`)
+| Job | Schedule | Input | Output |
+|-----|----------|-------|--------|
+| `daily_anomaly_aggregation.py` | Daily 2AM | MariaDB monitoring (anomalies + sessions) | HDFS `/proctorwise/processed/anomaly_reports/{year}/{month}/` |
+| `weekly_grade_analytics.py` | Sunday 3AM | MariaDB corrections (submissions + answers) | HDFS `/proctorwise/processed/grading_results/{year}/week_{num}/` |
+| `monthly_user_performance.py` | 1st of month 5AM | MariaDB corrections + monitoring | HDFS `/proctorwise/processed/user_performance/{year}/{month}/` |
+
+### Airflow DAGs (in `airflow/dags/`)
+| DAG | Schedule | Tasks |
+|-----|----------|-------|
+| `daily_anomaly_aggregation` | `0 2 * * *` | start -> spark_submit -> end |
+| `weekly_grade_analytics` | `0 3 * * 0` | start -> spark_submit -> end |
+| `monthly_user_performance` | `0 5 1 * *` | start -> spark_submit -> end |
+| `full_analytics_pipeline` | Manual | start -> anomaly -> grade -> user -> end |
+
+### Known Big Data Issues
+1. **Error masking**: `|| echo` in `spark_submit_cmd()` (DAG file line 33) prevents Airflow from detecting Spark failures. Retries never trigger.
+2. **Worker memory mismatch**: Worker has 2g, monthly job asks for 4g executor memory. Job can't allocate.
+3. **Data truncation**: `weekly_grade_analytics.py` line 195 limits to 1000 submission IDs.
+4. **collect() bottleneck**: `weekly_grade_analytics.py` line 193 loads all IDs into driver memory.
+5. **Hardcoded credentials**: All Spark jobs have MariaDB user/password in source code.
+6. **No validation tasks**: DAGs don't check pre-conditions (DB up, HDFS writable) or post-conditions (output exists).
+7. **No HDFS init DAG**: `init-hdfs.sh` must be run manually.
+8. **No retention/cleanup**: Parquet files accumulate indefinitely.
+9. **No sync to analytics DB**: Spark results stay in HDFS, not fed into AnalyticsService tables.
+
+### HDFS Structure
+```
+/proctorwise/
+  raw/frames/              (reserved, unused)
+  raw/recordings/          (reserved, unused)
+  processed/
+    anomaly_reports/       (daily Spark output)
+    grading_results/       (weekly Spark output)
+    user_performance/      (monthly Spark output)
+  ml/models/               (reserved for ML models)
+  archive/                 (reserved for archival)
+```
+
+### Docker Configs
+- **Spark** (`docker/spark/Dockerfile`): Apache Spark 3.5.0 + MySQL JDBC connector 8.0.33
+- **Airflow** (`docker/airflow/Dockerfile`): Airflow 2.8.0 + Python 3.11 + Docker CLI 27.4.1 + pymysql
+- **Airflow executes Spark jobs** via `docker exec proctorwise-spark-master spark-submit ...` (BashOperator)
 
 ## Common Commands
 
@@ -206,8 +270,18 @@ docker exec proctorwise-kafka kafka-topics --list --bootstrap-server localhost:9
 # HDFS
 docker exec proctorwise-namenode hdfs dfs -ls -R /proctorwise
 
+# Init HDFS structure (manual, run once)
+bash scripts/init-hdfs.sh
+
 # Airflow
 docker exec proctorwise-airflow airflow dags trigger full_analytics_pipeline
+docker exec proctorwise-airflow airflow dags list
+
+# Spark Master UI: http://localhost:8081
+# Airflow UI: http://localhost:8082 (admin/admin)
+# Kafka UI: http://localhost:8080
+# MailHog: http://localhost:8025
+# Adminer: http://localhost:8083
 ```
 
 ## Key Dependencies
@@ -224,30 +298,33 @@ docker exec proctorwise-airflow airflow dags trigger full_analytics_pipeline
 - **opencv-python** - Image processing
 - **aiokafka** - Async Kafka producer
 
+### AnalyticsService
+- **reportlab** - PDF generation
+- **pandas** - Data processing
+
 ## Current UI Status
 
 - **UserService**: Web interface OK (login/register with role selection, CORS enabled)
 - **ReservationService**: Web interface OK (full exam flow for student/teacher with results view)
-- **MonitoringService**: Web interface OK (proctor dashboard with sessions, alerts, WebSocket live feed)
+- **MonitoringService**: Web interface OK (proctor dashboard with sessions, alerts, WebSocket live feed, live video viewer)
 - **CorrectionService**: Backend only (integrated via ReservationService UI for grading + results)
 - **NotificationService**: Web interface OK (notification history, preferences, real-time WebSocket)
-- **AnalyticsService**: Needs web interface for admin dashboard
-
-## Recent Features
-
-- **Predefined exam slots**: Teachers define time slots when creating an exam; students pick from a dropdown instead of free date picking
-- **Slot management**: Teachers can add/remove slots from "Mes examens" tab via a slot manager panel
-- **Time-gated exam access**: Students can only start an exam during the reserved time slot (button disabled before/after)
-- Monitoring proctor dashboard with stats bar, 3 tabs, session detail modal, WebSocket live feed
-- ProcessFrame singleton for persistent face-absent detection across requests
-- Kafka producer lifecycle management (startup/shutdown)
-- Auto DB table creation on service start
-- Timer properly stops when exam is submitted
-- Confirmation message after submission (no score alert)
-- Reservation marked as "completed" after submission (prevents retake)
-- Teacher "Resultats" tab with student submissions list
-- Teacher can view detailed breakdown of each student's answers
+- **AnalyticsService**: Web interface OK (admin dashboard with KPIs, tables, export PDF/CSV)
 
 ## Current Tasks
 
-See `TASKS.md` for detailed task breakdown.
+See `TASKS.md` for detailed task breakdown. Main focus: Spark/Airflow/HDFS improvements (fix bugs, add validation DAGs, better worker config).
+
+## Recent Changes
+
+- **Webcam mandatory**: Student webcam is now **required** to start an exam — if permission is denied, exam is blocked and monitoring session stopped
+- **Proctor frame viewing**: Anomaly list in proctor dashboard now displays the associated webcam frame thumbnail with fullscreen overlay on click
+- **Frame serving endpoint**: New `GET /monitoring/frames?path=...` endpoint serves stored frame images as JPEG
+- **Airflow DB init fix**: Startup command uses `(airflow db migrate || airflow db init)` fallback for fresh databases
+- **Webcam integration**: Student webcam activates during exams, frames sent to MonitoringService every 2s
+- **Live video viewer**: Proctor can watch student webcam in real-time via WebSocket
+- **Browser event detection**: Tab change and webcam disabled detected and sent as anomalies
+- **YOLO pre-download**: Model downloaded at Docker build time (no more missing .pt files)
+- **MediaPipe pinned**: Version 0.10.14 for stability
+- **DB schema update**: Added questions, exam_slots tables, description column on anomalies, 'stopped' status
+- **Browser events without frame**: MonitoringService handles browser-only events (no image required)

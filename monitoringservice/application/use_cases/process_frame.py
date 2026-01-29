@@ -28,6 +28,31 @@ class ProcessFrame:
         self.event_publisher = event_publisher
         self._face_absent_start: dict = {}
 
+    async def execute_browser_event(
+        self,
+        session_id: str,
+        browser_event: str
+    ) -> List[Anomaly]:
+        """Handle browser-only events (tab_change, webcam_disabled) without a frame."""
+        session = self.repository.get_session_by_id(session_id)
+        if not session:
+            raise ValueError(f"Monitoring session {session_id} not found")
+        if session.status != "active":
+            raise ValueError(f"Monitoring session {session_id} is not active")
+
+        detected_anomalies: List[Anomaly] = []
+        anomaly = self._handle_browser_event(session_id, browser_event, None)
+        if anomaly:
+            detected_anomalies.append(anomaly)
+            self.repository.create_anomaly(anomaly)
+            await self._publish_anomaly_event(anomaly, session)
+
+        session.anomaly_count = self.repository.get_anomaly_count_by_session(session_id)
+        self.repository.update_session(session)
+
+        await self._check_high_risk_alert(session)
+        return detected_anomalies
+
     async def execute(
         self,
         session_id: str,

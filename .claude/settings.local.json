@@ -22,7 +22,8 @@
       "Bash(done)",
       "Bash(python -c:*)",
       "Bash(node -c main.py)",
-      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)"
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)",
+      "Bash(EXAM2=\"c364c69c-0199-445a-b725-a74041daa61a\")"
     ]
   }
 }

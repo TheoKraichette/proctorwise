@@ -6,6 +6,7 @@ from typing import List, Optional
 import numpy as np
 import cv2
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import Response
 
 from application.use_cases.start_monitoring import StartMonitoring
 from application.use_cases.stop_monitoring import StopMonitoring
@@ -88,19 +89,26 @@ async def start_monitoring(request: StartMonitoringRequest):
 @router.post("/sessions/{session_id}/frame", response_model=ProcessFrameResponse)
 async def process_frame(session_id: str, request: ProcessFrameRequest):
     try:
-        frame_bytes = base64.b64decode(request.frame_data)
-        nparr = np.frombuffer(frame_bytes, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # Browser-only events (no frame data)
+        if request.browser_event and (not request.frame_data or request.frame_data.strip() == ''):
+            anomalies = await process_frame_use_case.execute_browser_event(
+                session_id,
+                request.browser_event
+            )
+        else:
+            frame_bytes = base64.b64decode(request.frame_data)
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-        if frame is None:
-            raise ValueError("Could not decode frame data")
+            if frame is None:
+                raise ValueError("Could not decode frame data")
 
-        anomalies = await process_frame_use_case.execute(
-            session_id,
-            frame,
-            request.frame_number,
-            request.browser_event
-        )
+            anomalies = await process_frame_use_case.execute(
+                session_id,
+                frame,
+                request.frame_number,
+                request.browser_event
+            )
 
         if session_id in active_websockets:
             for ws in active_websockets[session_id]:
@@ -253,6 +261,16 @@ def get_anomaly_summary(session_id: str):
         raise HTTPException(status_code=404, detail=str(e))
 
     return AnomalySummaryResponse(**summary)
+
+
+@router.get("/frames")
+def get_frame_image(path: str):
+    """Serve a stored frame image by its storage path."""
+    frame = frame_storage.get_frame(path)
+    if frame is None:
+        raise HTTPException(status_code=404, detail="Frame not found")
+    _, encoded = cv2.imencode('.jpg', frame)
+    return Response(content=encoded.tobytes(), media_type="image/jpeg")
 
 
 @router.websocket("/sessions/{session_id}/stream")

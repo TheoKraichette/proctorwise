@@ -199,8 +199,19 @@ async def home():
                             <h2 id="examTakingTitle"></h2>
                             <p id="examTakingInfo"></p>
                         </div>
-                        <div class="exam-timer" id="examTimer">--:--</div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <div id="webcamStatus" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#999;">
+                                <span id="webcamDot" style="width:8px;height:8px;border-radius:50%;background:#6c757d;display:inline-block;"></span>
+                                <span id="webcamLabel">Webcam inactive</span>
+                            </div>
+                            <div class="exam-timer" id="examTimer">--:--</div>
+                        </div>
                     </div>
+                </div>
+                <!-- Webcam preview (small, top-right corner) -->
+                <div id="webcamContainer" style="position:fixed;top:10px;right:10px;z-index:1000;border-radius:10px;overflow:hidden;box-shadow:0 4px 15px rgba(0,0,0,0.3);display:none;">
+                    <video id="webcamVideo" autoplay playsinline muted style="width:160px;height:120px;object-fit:cover;display:block;background:#000;"></video>
+                    <canvas id="webcamCanvas" style="display:none;"></canvas>
                 </div>
                 <div class="card" style="border-radius: 0 0 15px 15px;">
                     <div class="progress-bar"><div class="progress-fill" id="progressBar"></div></div>
@@ -387,8 +398,10 @@ async def home():
 
     <script>
         let currentUser = null;
-        let examData = { questions: [], answers: {}, currentIndex: 0, examId: null, reservationId: null, duration: 0, startTime: null };
+        let examData = { questions: [], answers: {}, currentIndex: 0, examId: null, reservationId: null, duration: 0, startTime: null, sessionId: null };
         let timerInterval = null;
+        let frameCaptureInterval = null;
+        let webcamStream = null;
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -721,7 +734,7 @@ async def home():
             const questionsRes = await fetch('/exams/' + examId + '/questions');
             const questions = await questionsRes.json();
             if (questions.length === 0) { alert("Cet examen n'a pas encore de questions."); return; }
-            examData = { questions, answers: {}, currentIndex: 0, examId, reservationId, duration: exam.duration_minutes, startTime: Date.now(), title: exam.title };
+            examData = { questions, answers: {}, currentIndex: 0, examId, reservationId, duration: exam.duration_minutes, startTime: Date.now(), title: exam.title, sessionId: null };
             hideAllViews();
             document.getElementById('examView').classList.remove('hidden');
             document.getElementById('examTakingTitle').textContent = exam.title;
@@ -729,6 +742,43 @@ async def home():
             buildQuestionNav();
             renderQuestion();
             startTimer();
+
+            // Start monitoring session
+            try {
+                const monRes = await fetch('http://localhost:8003/monitoring/sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reservation_id: reservationId,
+                        user_id: currentUser.user_id,
+                        exam_id: examId
+                    })
+                });
+                if (monRes.ok) {
+                    const session = await monRes.json();
+                    examData.sessionId = session.session_id;
+                    console.log('Monitoring session started:', examData.sessionId);
+                }
+            } catch (e) {
+                console.warn('Could not start monitoring session:', e);
+            }
+
+            // Activate webcam (mandatory)
+            const webcamOk = await startWebcam();
+            if (!webcamOk) {
+                // Webcam refused: block exam, stop monitoring session, reset
+                if (examData.sessionId) {
+                    try { await fetch('http://localhost:8003/monitoring/sessions/' + examData.sessionId + '/stop', { method: 'PUT' }); } catch(e) {}
+                }
+                if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+                hideAllViews();
+                document.getElementById('studentView').classList.remove('hidden');
+                alert("La webcam est obligatoire pour passer l'examen. Veuillez autoriser l'acces a la camera et reessayer.");
+                return;
+            }
+
+            // Listen for tab changes
+            document.addEventListener('visibilitychange', handleTabChange);
         }
 
         function buildQuestionNav() {
@@ -802,10 +852,133 @@ async def home():
             }, 1000);
         }
 
+        // ========== WEBCAM & MONITORING ==========
+        async function startWebcam() {
+            const video = document.getElementById('webcamVideo');
+            const container = document.getElementById('webcamContainer');
+            const dot = document.getElementById('webcamDot');
+            const label = document.getElementById('webcamLabel');
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+                video.srcObject = webcamStream;
+                container.style.display = 'block';
+                dot.style.background = '#28a745';
+                label.textContent = 'Surveillance active';
+                label.style.color = '#28a745';
+                // Detect webcam disabled (track ended)
+                webcamStream.getVideoTracks().forEach(track => {
+                    track.onended = () => {
+                        sendBrowserEvent('webcam_disabled');
+                        dot.style.background = '#dc3545';
+                        label.textContent = 'Webcam desactivee';
+                        label.style.color = '#dc3545';
+                    };
+                });
+                // Start frame capture loop
+                startFrameCapture();
+                return true;
+            } catch (err) {
+                console.warn('Webcam access denied:', err);
+                dot.style.background = '#dc3545';
+                label.textContent = 'Webcam refusee';
+                label.style.color = '#dc3545';
+                sendBrowserEvent('webcam_disabled');
+                return false;
+            }
+        }
+
+        function startFrameCapture() {
+            if (frameCaptureInterval) clearInterval(frameCaptureInterval);
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            let frameNumber = 0;
+            frameCaptureInterval = setInterval(async () => {
+                if (!webcamStream || !examData.sessionId) return;
+                if (video.readyState < 2) return; // video not ready
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const frameData = canvas.toDataURL('image/jpeg', 0.6).split(',')[1];
+                try {
+                    await fetch('http://localhost:8003/monitoring/sessions/' + examData.sessionId + '/frame', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            frame_data: frameData,
+                            frame_number: frameNumber++,
+                            browser_event: null
+                        })
+                    });
+                } catch (e) {
+                    console.warn('Frame send error:', e);
+                }
+            }, 2000); // Every 2 seconds
+        }
+
+        function handleTabChange() {
+            if (!examData.sessionId) return;
+            if (document.hidden) {
+                sendBrowserEvent('tab_change');
+            }
+        }
+
+        async function sendBrowserEvent(eventType) {
+            if (!examData.sessionId) return;
+            try {
+                await fetch('http://localhost:8003/monitoring/sessions/' + examData.sessionId + '/frame', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        frame_data: '',
+                        frame_number: -1,
+                        browser_event: eventType
+                    })
+                });
+            } catch (e) {
+                console.warn('Browser event send error:', e);
+            }
+        }
+
+        async function stopMonitoringAndWebcam() {
+            // Remove tab change listener
+            document.removeEventListener('visibilitychange', handleTabChange);
+            // Stop frame capture
+            if (frameCaptureInterval) {
+                clearInterval(frameCaptureInterval);
+                frameCaptureInterval = null;
+            }
+            // Stop monitoring session
+            if (examData.sessionId) {
+                try {
+                    await fetch('http://localhost:8003/monitoring/sessions/' + examData.sessionId + '/stop', { method: 'PUT' });
+                    console.log('Monitoring session stopped:', examData.sessionId);
+                } catch (e) {
+                    console.warn('Could not stop monitoring session:', e);
+                }
+                examData.sessionId = null;
+            }
+            // Stop webcam
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+            }
+            const video = document.getElementById('webcamVideo');
+            if (video) video.srcObject = null;
+            const container = document.getElementById('webcamContainer');
+            if (container) container.style.display = 'none';
+            const dot = document.getElementById('webcamDot');
+            if (dot) dot.style.background = '#6c757d';
+            const label = document.getElementById('webcamLabel');
+            if (label) { label.textContent = 'Webcam inactive'; label.style.color = '#999'; }
+        }
+
         async function submitExam(autoSubmit = false) {
             if (!autoSubmit && !confirm("Terminer et soumettre l'examen?")) return;
             // Stop timer
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            // Stop monitoring and webcam
+            await stopMonitoringAndWebcam();
             // Fetch correct answers for grading
             const correctRes = await fetch('/exams/' + examData.examId + '/questions/with-answers');
             const questionsWithAnswers = await correctRes.json();

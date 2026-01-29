@@ -822,8 +822,28 @@ async def home():
             html += '<div style="margin-top:3px;font-size:11px;color:#999;">';
             html += 'Methode: ' + (a.detection_method || '-') + ' | Confiance: ' + ((a.confidence || 0) * 100).toFixed(0) + '%';
             html += '</div>';
+            if (a.frame_path) {
+                const frameUrl = '/monitoring/frames?path=' + encodeURIComponent(a.frame_path);
+                html += '<div style="margin-top:8px;">';
+                html += '<img src="' + frameUrl + '" style="max-width:320px;max-height:180px;border-radius:6px;border:1px solid #ddd;cursor:pointer;" onclick="openFrameFullscreen(this.src)" title="Cliquer pour agrandir">';
+                html += '</div>';
+            }
             html += '</div>';
             return html;
+        }
+
+        function openFrameFullscreen(src) {
+            let overlay = document.getElementById('frameOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'frameOverlay';
+                overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:10000;cursor:pointer;';
+                overlay.onclick = function() { overlay.style.display = 'none'; };
+                overlay.innerHTML = '<img id="frameOverlayImg" style="max-width:90%;max-height:90%;border-radius:8px;">';
+                document.body.appendChild(overlay);
+            }
+            document.getElementById('frameOverlayImg').src = src;
+            overlay.style.display = 'flex';
         }
 
         function closeDetail() {

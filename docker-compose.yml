@@ -171,7 +171,7 @@ services:
     command: >
       bash -c "
         sleep 5 &&
-        airflow db migrate &&
+        (airflow db migrate || airflow db init) &&
         airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@proctorwise.com 2>/dev/null || true &&
         (airflow scheduler &) &&
         exec airflow webserver

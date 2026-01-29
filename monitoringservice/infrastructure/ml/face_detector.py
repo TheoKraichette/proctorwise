@@ -3,7 +3,6 @@ import numpy as np
 
 from application.interfaces.ml_detector import MLDetector, Detection
 
-
 class YOLOFaceDetector(MLDetector):
     def __init__(self, model_path: str = None):
         self.model = None
