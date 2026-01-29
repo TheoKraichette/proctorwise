@@ -36,3 +36,7 @@ class MonitoringRepository(ABC):
     @abstractmethod
     def get_recent_anomalies(self, session_id: str, seconds: int = 60) -> List[Anomaly]:
         pass
+
+    @abstractmethod
+    def get_all_sessions(self) -> List[MonitoringSession]:
+        pass

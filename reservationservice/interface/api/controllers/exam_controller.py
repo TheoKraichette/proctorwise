@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 import uuid
 
-from interface.api.schemas.exam_schemas import ExamCreateRequest, ExamUpdateRequest, ExamResponse
+from interface.api.schemas.exam_schemas import ExamCreateRequest, ExamUpdateRequest, ExamResponse, ExamSlotCreateRequest, ExamSlotResponse
 from infrastructure.repositories.sqlalchemy_exam_repository import SQLAlchemyExamRepository
 from domain.entities.exam import Exam
 
@@ -119,3 +119,44 @@ async def delete_exam(exam_id: str):
     if not success:
         raise HTTPException(status_code=404, detail="Exam not found")
     return {"message": "Exam deleted successfully"}
+
+
+# ========== EXAM SLOTS ==========
+
+@router.post("/{exam_id}/slots", response_model=ExamSlotResponse)
+async def create_slot(exam_id: str, request: ExamSlotCreateRequest):
+    """Add a time slot to an exam"""
+    exam = await exam_repo.get_by_id(exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    slot = await exam_repo.create_slot(exam_id, request.start_time)
+    return ExamSlotResponse(
+        slot_id=slot.slot_id,
+        exam_id=slot.exam_id,
+        start_time=slot.start_time,
+        created_at=slot.created_at
+    )
+
+
+@router.get("/{exam_id}/slots", response_model=List[ExamSlotResponse])
+async def list_slots(exam_id: str):
+    """List all time slots for an exam"""
+    slots = await exam_repo.get_slots_by_exam(exam_id)
+    return [
+        ExamSlotResponse(
+            slot_id=s.slot_id,
+            exam_id=s.exam_id,
+            start_time=s.start_time,
+            created_at=s.created_at
+        )
+        for s in slots
+    ]
+
+
+@router.delete("/{exam_id}/slots/{slot_id}")
+async def delete_slot(exam_id: str, slot_id: str):
+    """Remove a time slot from an exam"""
+    success = await exam_repo.delete_slot(slot_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    return {"message": "Slot deleted successfully"}

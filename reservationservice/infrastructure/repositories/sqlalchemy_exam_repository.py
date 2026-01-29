@@ -1,7 +1,9 @@
 from typing import Optional, List
-from infrastructure.database.models import ExamModel
+import uuid
+from infrastructure.database.models import ExamModel, ExamSlotModel
 from infrastructure.database.mariadb_cluster import SessionLocal
 from domain.entities.exam import Exam
+from domain.entities.exam_slot import ExamSlot
 from application.interfaces.exam_repository import ExamRepository
 
 
@@ -86,4 +88,49 @@ class SQLAlchemyExamRepository(ExamRepository):
             teacher_id=db_exam.teacher_id,
             status=db_exam.status,
             created_at=db_exam.created_at
+        )
+
+    # ========== EXAM SLOTS ==========
+
+    async def create_slot(self, exam_id: str, start_time) -> ExamSlot:
+        session = SessionLocal()
+        try:
+            db_slot = ExamSlotModel(
+                slot_id=str(uuid.uuid4()),
+                exam_id=exam_id,
+                start_time=start_time
+            )
+            session.add(db_slot)
+            session.commit()
+            session.refresh(db_slot)
+            return self._to_slot_entity(db_slot)
+        finally:
+            session.close()
+
+    async def get_slots_by_exam(self, exam_id: str) -> List[ExamSlot]:
+        session = SessionLocal()
+        try:
+            results = session.query(ExamSlotModel).filter_by(exam_id=exam_id).order_by(ExamSlotModel.start_time).all()
+            return [self._to_slot_entity(r) for r in results]
+        finally:
+            session.close()
+
+    async def delete_slot(self, slot_id: str) -> bool:
+        session = SessionLocal()
+        try:
+            db_slot = session.query(ExamSlotModel).filter_by(slot_id=slot_id).first()
+            if db_slot:
+                session.delete(db_slot)
+                session.commit()
+                return True
+            return False
+        finally:
+            session.close()
+
+    def _to_slot_entity(self, db_slot: ExamSlotModel) -> ExamSlot:
+        return ExamSlot(
+            slot_id=db_slot.slot_id,
+            exam_id=db_slot.exam_id,
+            start_time=db_slot.start_time,
+            created_at=db_slot.created_at
         )

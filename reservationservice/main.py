@@ -135,13 +135,15 @@ async def home():
                     <form id="reservationForm" onsubmit="createReservation(event)">
                         <div class="form-group">
                             <label>Choisir un examen</label>
-                            <select id="examSelect" required>
+                            <select id="examSelect" required onchange="loadSlotsForExam()">
                                 <option value="">-- Selectionnez --</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>Date et heure</label>
-                            <input type="datetime-local" id="startTime" required>
+                            <label>Creneau disponible</label>
+                            <select id="slotSelect" required>
+                                <option value="">-- Choisissez d'abord un examen --</option>
+                            </select>
                         </div>
                         <button type="submit">Reserver</button>
                     </form>
@@ -159,8 +161,8 @@ async def home():
                 <div class="exam-header">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
-                            <h2 id="examTitle"></h2>
-                            <p id="examInfo"></p>
+                            <h2 id="examTakingTitle"></h2>
+                            <p id="examTakingInfo"></p>
                         </div>
                         <div class="exam-timer" id="examTimer">--:--</div>
                     </div>
@@ -201,6 +203,11 @@ async def home():
                             <label>Duree (minutes)</label>
                             <input type="number" id="examDuration" value="60" min="5" max="300" required>
                         </div>
+                        <div class="form-group">
+                            <label>Creneaux disponibles</label>
+                            <div id="slotsContainer"></div>
+                            <button type="button" onclick="addSlotInput()" style="margin-top:8px;padding:8px 16px;font-size:13px;">+ Ajouter un creneau</button>
+                        </div>
                         <button type="submit">Creer l'examen</button>
                     </form>
                     <div id="examMessage" class="message hidden"></div>
@@ -209,6 +216,20 @@ async def home():
                 <div id="teacherExamsTab" class="card hidden">
                     <h2>Mes examens</h2>
                     <div id="teacherExamsList"></div>
+                    <div id="slotManager" class="hidden" style="margin-top:20px;padding-top:20px;border-top:2px solid #e0e0e0;">
+                        <h3 id="slotManagerTitle" style="margin-bottom:15px;"></h3>
+                        <div class="form-row" style="align-items:flex-end;">
+                            <div class="form-group" style="flex:2;">
+                                <label>Nouveau creneau</label>
+                                <input type="datetime-local" id="newSlotTime">
+                            </div>
+                            <div class="form-group" style="flex:1;">
+                                <button type="button" onclick="addSlotToExam()">Ajouter</button>
+                            </div>
+                        </div>
+                        <div id="existingSlots"></div>
+                        <button onclick="closeSlotManager()" class="btn-secondary" style="margin-top:10px;">Fermer</button>
+                    </div>
                 </div>
 
                 <div id="teacherQuestionsTab" class="card hidden">
@@ -286,7 +307,7 @@ async def home():
                 <div class="card">
                     <h2>Surveillance des examens</h2>
                     <p style="padding: 40px; text-align: center; color: #666;">
-                        <a href="http://localhost:8003" style="color: #11998e;">Acceder au service de monitoring</a>
+                        <a href="#" onclick="window.location.href='http://localhost:8003?token='+localStorage.getItem('token'); return false;" style="color: #11998e;">Acceder au service de monitoring</a>
                     </p>
                 </div>
             </div>
@@ -402,7 +423,16 @@ async def home():
                 html += '<tr><td>' + examTitle + '</td><td>' + formatDateTime(r.start_time) + '</td>';
                 html += '<td><span class="status status-' + r.status + '">' + r.status + '</span></td><td>';
                 if (r.status === 'scheduled') {
-                    html += '<button class="btn-small btn-secondary" onclick="startExam(\\'' + r.exam_id + '\\', \\'' + r.reservation_id + '\\')">Passer</button> ';
+                    const now = new Date();
+                    const start = new Date(r.start_time);
+                    const end = new Date(r.end_time);
+                    if (now >= start && now <= end) {
+                        html += '<button class="btn-small btn-secondary" onclick="startExam(\\'' + r.exam_id + '\\', \\'' + r.reservation_id + '\\')">Passer</button> ';
+                    } else if (now < start) {
+                        html += '<button class="btn-small" disabled style="opacity:0.5;cursor:not-allowed;">Disponible le ' + formatDateTime(r.start_time) + '</button> ';
+                    } else {
+                        html += '<span style="color:#dc3545;font-size:12px;">Creneau expire</span> ';
+                    }
                     html += '<button class="btn-small btn-danger" onclick="cancelReservation(\\'' + r.reservation_id + '\\')">Annuler</button>';
                 }
                 html += '</td></tr>';
@@ -411,13 +441,35 @@ async def home():
             container.innerHTML = html;
         }
 
+        async function loadSlotsForExam() {
+            const examSelect = document.getElementById('examSelect');
+            const examId = examSelect.value;
+            const slotSelect = document.getElementById('slotSelect');
+            slotSelect.innerHTML = '<option value="">-- Selectionnez un creneau --</option>';
+            if (!examId) { slotSelect.innerHTML = '<option value="">-- Choisissez d\\'abord un examen --</option>'; return; }
+            const res = await fetch('/exams/' + examId + '/slots');
+            const slots = await res.json();
+            if (slots.length === 0) {
+                slotSelect.innerHTML = '<option value="">Aucun creneau disponible</option>';
+                return;
+            }
+            slots.forEach(slot => {
+                const opt = document.createElement('option');
+                opt.value = slot.start_time;
+                opt.textContent = formatDateTime(slot.start_time);
+                slotSelect.appendChild(opt);
+            });
+        }
+
         async function createReservation(e) {
             e.preventDefault();
             const examSelect = document.getElementById('examSelect');
             const examId = examSelect.value;
-            const startTime = document.getElementById('startTime').value;
+            const slotSelect = document.getElementById('slotSelect');
+            const selectedSlot = slotSelect.value;
+            if (!selectedSlot) { showMessage('reservationMessage', 'Veuillez selectionner un creneau', true); return; }
             const duration = parseInt(examSelect.options[examSelect.selectedIndex].dataset.duration) || 60;
-            const startDate = new Date(startTime);
+            const startDate = new Date(selectedSlot);
             const endDate = new Date(startDate.getTime() + duration * 60000);
             const res = await fetch('/reservations/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -443,8 +495,8 @@ async def home():
             examData = { questions, answers: {}, currentIndex: 0, examId, reservationId, duration: exam.duration_minutes, startTime: Date.now(), title: exam.title };
             hideAllViews();
             document.getElementById('examView').classList.remove('hidden');
-            document.getElementById('examTitle').textContent = exam.title;
-            document.getElementById('examInfo').textContent = questions.length + ' questions - ' + exam.duration_minutes + ' minutes';
+            document.getElementById('examTakingTitle').textContent = exam.title;
+            document.getElementById('examTakingInfo').textContent = questions.length + ' questions - ' + exam.duration_minutes + ' minutes';
             buildQuestionNav();
             renderQuestion();
             startTimer();
@@ -576,8 +628,22 @@ async def home():
             if (tab === 'results') loadExamsForResultsSelect();
         }
 
+        function addSlotInput() {
+            const container = document.getElementById('slotsContainer');
+            const div = document.createElement('div');
+            div.style.cssText = 'display:flex;gap:10px;align-items:center;margin-bottom:8px;';
+            div.innerHTML = '<input type="datetime-local" class="slot-input" style="flex:1;" required>' +
+                '<button type="button" onclick="this.parentElement.remove()" style="padding:8px 12px;font-size:13px;" class="btn-danger">X</button>';
+            container.appendChild(div);
+        }
+
         async function createExam(e) {
             e.preventDefault();
+            const slotInputs = document.querySelectorAll('#slotsContainer .slot-input');
+            const slotTimes = [];
+            for (const input of slotInputs) {
+                if (input.value) slotTimes.push(input.value);
+            }
             const res = await fetch('/exams/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -587,7 +653,21 @@ async def home():
                     teacher_id: currentUser.user_id
                 })
             });
-            if (res.ok) { showMessage('examMessage', 'Examen cree!'); document.getElementById('examForm').reset(); loadTeacherExams(); loadExamsForQuestionSelect(); }
+            if (res.ok) {
+                const exam = await res.json();
+                // Create slots
+                for (const st of slotTimes) {
+                    await fetch('/exams/' + exam.exam_id + '/slots', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ start_time: new Date(st).toISOString() })
+                    });
+                }
+                const slotMsg = slotTimes.length > 0 ? ' avec ' + slotTimes.length + ' creneau(x)' : '';
+                showMessage('examMessage', 'Examen cree!' + slotMsg);
+                document.getElementById('examForm').reset();
+                document.getElementById('slotsContainer').innerHTML = '';
+                loadTeacherExams(); loadExamsForQuestionSelect();
+            }
             else showMessage('examMessage', 'Erreur', true);
         }
 
@@ -596,13 +676,17 @@ async def home():
             const exams = await res.json();
             const container = document.getElementById('teacherExamsList');
             if (exams.length === 0) { container.innerHTML = '<p style="color:#666;text-align:center;">Aucun examen</p>'; return; }
-            let html = '<table><thead><tr><th>Titre</th><th>Duree</th><th>Questions</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Titre</th><th>Duree</th><th>Questions</th><th>Creneaux</th><th>Actions</th></tr></thead><tbody>';
             for (const exam of exams) {
                 const qRes = await fetch('/exams/' + exam.exam_id + '/questions');
                 const questions = await qRes.json();
+                const sRes = await fetch('/exams/' + exam.exam_id + '/slots');
+                const slots = await sRes.json();
                 html += '<tr><td>' + exam.title + '</td><td>' + exam.duration_minutes + ' min</td>';
                 html += '<td>' + questions.length + '</td>';
-                html += '<td><button class="btn-small btn-danger" onclick="deleteExam(\\'' + exam.exam_id + '\\')">Supprimer</button></td></tr>';
+                html += '<td>' + slots.length + '</td>';
+                html += '<td><button class="btn-small btn-secondary" onclick="openSlotManager(\\'' + exam.exam_id + '\\', \\'' + exam.title.replace(/'/g, "\\\\'") + '\\')">Creneaux</button> ';
+                html += '<button class="btn-small btn-danger" onclick="deleteExam(\\'' + exam.exam_id + '\\')">Supprimer</button></td></tr>';
             }
             html += '</tbody></table>';
             container.innerHTML = html;
@@ -613,6 +697,54 @@ async def home():
             await fetch('/exams/' + id, { method: 'DELETE' });
             loadTeacherExams();
             loadExamsForQuestionSelect();
+        }
+
+        let slotManagerExamId = null;
+
+        async function openSlotManager(examId, examTitle) {
+            slotManagerExamId = examId;
+            document.getElementById('slotManagerTitle').textContent = 'Creneaux - ' + examTitle;
+            document.getElementById('slotManager').classList.remove('hidden');
+            document.getElementById('newSlotTime').value = '';
+            await loadExistingSlots();
+        }
+
+        function closeSlotManager() {
+            document.getElementById('slotManager').classList.add('hidden');
+            slotManagerExamId = null;
+            loadTeacherExams();
+        }
+
+        async function loadExistingSlots() {
+            if (!slotManagerExamId) return;
+            const res = await fetch('/exams/' + slotManagerExamId + '/slots');
+            const slots = await res.json();
+            const container = document.getElementById('existingSlots');
+            if (slots.length === 0) { container.innerHTML = '<p style="color:#666;">Aucun creneau</p>'; return; }
+            let html = '<table><thead><tr><th>Date et heure</th><th>Actions</th></tr></thead><tbody>';
+            slots.forEach(s => {
+                html += '<tr><td>' + formatDateTime(s.start_time) + '</td>';
+                html += '<td><button class="btn-small btn-danger" onclick="removeSlot(\\'' + s.slot_id + '\\')">Supprimer</button></td></tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function addSlotToExam() {
+            const timeInput = document.getElementById('newSlotTime');
+            if (!timeInput.value) { alert('Veuillez choisir une date et heure'); return; }
+            await fetch('/exams/' + slotManagerExamId + '/slots', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ start_time: new Date(timeInput.value).toISOString() })
+            });
+            timeInput.value = '';
+            loadExistingSlots();
+        }
+
+        async function removeSlot(slotId) {
+            if (!confirm('Supprimer ce creneau?')) return;
+            await fetch('/exams/' + slotManagerExamId + '/slots/' + slotId, { method: 'DELETE' });
+            loadExistingSlots();
         }
 
         async function loadExamsForQuestionSelect() {
@@ -636,7 +768,7 @@ async def home():
             const res = await fetch('/exams/' + examId + '/questions/with-answers');
             const questions = await res.json();
             const container = document.getElementById('existingQuestions');
-            if (questions.length === 0) { container.innerHTML = '<p style="color:#666;">Aucune question</p>'; return; }
+            if (!Array.isArray(questions) || questions.length === 0) { container.innerHTML = '<p style="color:#666;">Aucune question</p>'; return; }
             let html = '<table><thead><tr><th>#</th><th>Question</th><th>Type</th><th>Reponse</th><th>Actions</th></tr></thead><tbody>';
             questions.forEach(q => {
                 html += '<tr><td>' + q.question_number + '</td><td>' + q.question_text.substring(0, 50) + '...</td>';
@@ -758,8 +890,11 @@ async def home():
                 const questionsRes = await fetch('/exams/' + examId + '/questions/with-answers');
                 const questions = await questionsRes.json();
                 const questionMap = {};
-                questions.forEach((q, i) => { questionMap[q.question_id] = { text: q.question_text, number: i + 1 }; });
-                for (const ans of result.answers) {
+                if (Array.isArray(questions)) {
+                    questions.forEach((q, i) => { questionMap[q.question_id] = { text: q.question_text, number: i + 1 }; });
+                }
+                const answers = Array.isArray(result.answers) ? result.answers : [];
+                for (const ans of answers) {
                     const qInfo = questionMap[ans.question_id] || { text: 'Question inconnue', number: '?' };
                     const isCorrect = ans.is_correct;
                     const icon = isCorrect ? '✓' : '✗';

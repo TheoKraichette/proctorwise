@@ -83,7 +83,7 @@ class HDFSFrameStorage(FrameStorage):
 
 
 class LocalFrameStorage(FrameStorage):
-    def __init__(self, base_path: str = "./frames"):
+    def __init__(self, base_path: str = "./local_storage"):
         self.base_path = base_path
         os.makedirs(base_path, exist_ok=True)
 

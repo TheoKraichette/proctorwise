@@ -27,3 +27,17 @@ class ExamResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ExamSlotCreateRequest(BaseModel):
+    start_time: datetime
+
+
+class ExamSlotResponse(BaseModel):
+    slot_id: str
+    exam_id: str
+    start_time: datetime
+    created_at: Optional[datetime]
+
+    class Config:
+        from_attributes = True

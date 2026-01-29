@@ -14,12 +14,12 @@
 | UserService | Backend OK, UI OK, Roles OK, CORS OK, JWT OK | 100% |
 | ReservationService | Backend OK, UI OK, Exams+Questions+Resultats+Copies OK | 100% |
 | CorrectionService | Backend OK, integre via UI Reservation, Auto-grading OK | 100% |
-| MonitoringService | Backend OK, ML OK, WebSocket OK, **UI manquante** | 85% |
+| MonitoringService | Backend OK, WebSocket OK, **UI OK**, ML degrade | 90% |
 | NotificationService | Backend OK, Email+WS OK, Kafka OK, **UI manquante** | 85% |
 | AnalyticsService | Backend OK, PDF/CSV OK, **UI manquante** | 80% |
 | Spark Jobs | 3 jobs implementes, non testes | 90% |
 | Airflow DAGs | 4 DAGs configures, non testes | 95% |
-| ML (YOLO/MediaPipe) | HybridDetector implemente | 80% |
+| ML (YOLO/MediaPipe) | Code ecrit, **YOLO non fonctionnel** (modeles .pt manquants) | 50% |
 
 ---
 
@@ -28,6 +28,8 @@
 ### Flux complet Enseignant
 - [x] Connexion avec role "teacher"
 - [x] Creation d'examens (titre, description, duree)
+- [x] Definition de creneaux horaires lors de la creation d'un examen
+- [x] Gestion des creneaux depuis l'onglet "Mes examens" (ajout/suppression)
 - [x] Ajout de questions QCM (4 choix)
 - [x] Ajout de questions Vrai/Faux
 - [x] Visualisation des questions avec reponses
@@ -38,8 +40,8 @@
 ### Flux complet Etudiant
 - [x] Connexion avec role "student"
 - [x] Liste des examens disponibles (avec nb questions)
-- [x] Reservation d'un creneau (date + heure)
-- [x] Passage de l'examen avec timer
+- [x] Reservation sur creneaux predefinis par l'enseignant (dropdown)
+- [x] Passage de l'examen uniquement a la date prevue (bouton "Passer" actif seulement pendant le creneau)
 - [x] Navigation entre questions
 - [x] Barre de progression
 - [x] Soumission et correction automatique
@@ -47,10 +49,20 @@
 - [x] Statut "completed" apres soumission (pas de reprise possible)
 
 ### Flux Surveillant
-- [ ] Dashboard temps reel (UI manquante)
+- [x] Dashboard temps reel (stats, sessions, alertes)
 - [x] Backend monitoring complet (sessions, frames, anomalies)
-- [x] Detection ML (MediaPipe + YOLO)
-- [x] WebSocket pour alertes temps reel
+- [x] Liste sessions actives avec auto-refresh 10s
+- [x] Historique de toutes les sessions
+- [x] Onglet alertes recentes (agregation cross-sessions)
+- [x] Modal detail session (resume severites, types, methodes de detection)
+- [x] Bouton arreter session active
+- [x] WebSocket temps reel avec feed live dans le modal
+- [x] Notifications toast pour alertes critical/high
+- [x] Barre de statistiques (sessions actives, total, anomalies, critiques)
+- [x] Authentification JWT (role proctor uniquement)
+- [~] Detection ML : code ecrit mais **YOLO non fonctionnel** (modeles .pt manquants dans Docker)
+- [~] MediaPipe face detection : probablement OK mais non teste en container
+- [x] Regles browser (tab change, webcam disabled)
 
 ### Flux Admin
 - [ ] Dashboard analytics (UI manquante)
@@ -84,13 +96,14 @@
 ## 2. RESERVATIONSERVICE (Port 8000) - COMPLET
 
 ### Etat Actuel
-- **Entites**: Exam, Question, Reservation
+- **Entites**: Exam, Question, Reservation, ExamSlot
 - **Endpoints Exams**: CRUD complet (`POST/GET /exams/`, `GET /exams/{id}`, `GET /exams/teacher/{id}`, `DELETE /exams/{id}`)
+- **Endpoints Slots**: CRUD complet (`POST /exams/{id}/slots`, `GET /exams/{id}/slots`, `DELETE /exams/{id}/slots/{slot_id}`)
 - **Endpoints Questions**: CRUD complet (`POST /exams/{id}/questions/`, `POST .../bulk`, `GET .../questions`, `GET .../with-answers`)
 - **Endpoints Reservations**: CRUD complet (`POST /reservations/`, `GET .../user/{id}`, `PATCH .../status`, `DELETE`)
 - **UI par role** (HTML embarque avec CSS/JS inline):
-  - Etudiant: Reserver, Passer examen, Voir reservations, Confirmation soumission
-  - Enseignant: Creer examen, Gerer questions (QCM + Vrai/Faux), Voir resultats, Consulter copies
+  - Etudiant: Reserver sur creneau predefini, Passer examen (uniquement a la date prevue), Voir reservations, Confirmation soumission
+  - Enseignant: Creer examen avec creneaux, Gerer creneaux, Gerer questions (QCM + Vrai/Faux), Voir resultats, Consulter copies
   - Surveillant: Lien vers MonitoringService
   - Admin: Grille avec liens vers Analytics et gestion users
 - **Integration**: Appels directs vers CorrectionService (port 8004) pour soumission et resultats
@@ -106,7 +119,7 @@
 
 ---
 
-## 3. MONITORINGSERVICE (Port 8003) - UI MANQUANTE
+## 3. MONITORINGSERVICE (Port 8003) - UI OK, ML DEGRADE
 
 ### Etat Actuel
 - **Backend**: Complet (sessions, frames, anomalies)
@@ -114,24 +127,54 @@
   - `POST /monitoring/sessions` - Demarrer session
   - `POST /monitoring/sessions/{id}/frame` - Traiter frame
   - `PUT /monitoring/sessions/{id}/stop` - Arreter session
+  - `GET /monitoring/sessions` - Liste sessions (filtre ?status=active)
   - `GET /monitoring/sessions/{id}` - Details session
-  - `GET /monitoring/sessions/{id}/anomalies` - Liste anomalies
+  - `GET /monitoring/sessions/{id}/anomalies` - Liste anomalies (filtre ?severity=)
   - `GET /monitoring/sessions/{id}/anomalies/summary` - Resume anomalies
   - `WS /monitoring/sessions/{id}/stream` - WebSocket temps reel
-- **ML**: MediaPipe (visages) + YOLO/ultralytics (objets) + regles
-- **Detection**: Face absente, multiples visages, objets interdits (telephone, livre, laptop), changement onglet, webcam desactivee
-- **Severites**: critical, high, medium, low
-- **Stockage**: HDFS ou local pour les frames
-- **Kafka**: Publisher pour evenements anomalies
-- **UI**: **MANQUANTE** - Pas de dashboard web pour le surveillant
+- **Stockage**: Local (volume Docker /app/local_storage) ou HDFS pour les frames
+- **Kafka**: Publisher pour evenements anomalies (lifecycle gere au startup/shutdown)
+- **DB**: Tables auto-creees au demarrage via SQLAlchemy
+- **UI**: Dashboard surveillant complet (HTML embarque dans main.py)
+
+### Dashboard Surveillant (UI)
+- Barre de statistiques : sessions actives, total sessions, anomalies totales, alertes critiques
+- 3 onglets : Sessions actives (auto-refresh 10s), Historique, Alertes recentes
+- Table sessions : ID, examen, etudiant, debut, duree, frames, anomalies, statut, actions
+- Bouton "Arreter" pour stopper une session active
+- Modal detail session : infos completes, resume par severite, par type, par methode de detection
+- WebSocket temps reel avec feed live dans le modal
+- Notifications toast pour alertes critical/high
+- Authentification JWT (role proctor uniquement)
+
+### Bugs corriges
+- **ProcessFrame singleton** : `_face_absent_start` persiste entre les requetes (detection face absente >5s fonctionne)
+- **Volume Docker** : chemin de stockage frames aligne (`./local_storage` = `/app/local_storage`)
+- **DB sessions** : try/finally pour eviter DetachedInstanceError, conversion domain avant close()
+- **Kafka lifecycle** : start() au demarrage, stop() a l'arret via lifespan
+- **Tables auto-creees** : `Base.metadata.create_all()` au startup
+- **JS setInterval** : `clearInterval` dans `disconnectWebSocket()`, pas de fuite memoire
+
+### Etat ML/Detection
+
+| Composant | Code | Fonctionne en prod ? |
+|-----------|------|---------------------|
+| MediaPipe (face detection) | Vrai code d'inference | Probablement oui (package installe) |
+| YOLO (object detection) | Vrai code d'inference | **NON** - fichiers modeles `.pt` manquants (gitignored) |
+| HybridDetector | Architecture OK | Partiellement (face oui, objets non) |
+| Regles (tab change, webcam) | Code OK | Oui |
+
+**Probleme principal**: Les fichiers modeles YOLO (`yolov8n.pt`) sont dans le `.gitignore` (`*.pt`, `*.pth`, `*.onnx`, `models/`). Au runtime le `try/except` catch l'erreur silencieusement et `detect_objects()` retourne toujours `[]`. La detection d'objets interdits (telephone, livre, laptop) **ne fonctionne pas**.
 
 ### Taches Restantes
 
 | ID | Tache | Priorite | Status |
 |----|-------|----------|--------|
-| **M1** | **Interface Web dashboard surveillant** | **HAUTE** | **Non fait** |
-| **M2** | **Liste des sessions en cours** | **HAUTE** | **Non fait** |
-| **M3** | **Affichage alertes temps reel** | **HAUTE** | **Non fait** |
+| ~~M1~~ | ~~Interface Web dashboard surveillant~~ | ~~HAUTE~~ | **Fait** |
+| ~~M2~~ | ~~Liste des sessions en cours~~ | ~~HAUTE~~ | **Fait** |
+| ~~M3~~ | ~~Affichage alertes temps reel~~ | ~~HAUTE~~ | **Fait** |
+| **M4** | **Rendre YOLO fonctionnel (download modele dans Docker)** | **HAUTE** | **Non fait** |
+| **M5** | **Tester MediaPipe dans le container** | **HAUTE** | **Non fait** |
 
 ---
 
@@ -282,18 +325,21 @@ Aucune - service complet et integre.
 
 ### Fonctionnel
 - [x] Login/Register avec roles
-- [x] Creation examen par enseignant
+- [x] Creation examen par enseignant avec creneaux
+- [x] Gestion creneaux (ajout/suppression) depuis "Mes examens"
 - [x] Ajout questions QCM
 - [x] Ajout questions Vrai/Faux
-- [x] Reservation examen par etudiant
-- [x] Passage examen avec timer
+- [x] Reservation examen par etudiant sur creneaux predefinis
+- [x] Passage examen uniquement a la date du creneau reserve
 - [x] Correction automatique
 - [x] Confirmation soumission (sans affichage score)
 - [x] Statut "completed" empeche reprise examen
 - [x] Enseignant voit liste resultats par examen
 - [x] Enseignant consulte copie detaillee etudiant
-- [ ] **Dashboard monitoring (surveillant) - UI MANQUANTE**
+- [x] **Dashboard monitoring (surveillant) - COMPLET**
 - [ ] **Dashboard analytics (admin) - UI MANQUANTE**
+- [ ] **YOLO object detection non fonctionnel (modeles .pt manquants)**
+- [ ] **MediaPipe non teste en container**
 - [ ] Historique notifications (UI manquante)
 - [ ] Spark jobs testes avec donnees reelles
 
@@ -321,9 +367,8 @@ Aucune - service complet et integre.
 ### Priorite HAUTE
 | ID | Service | Tache |
 |----|---------|-------|
-| M1 | MonitoringService | Interface Web dashboard surveillant |
-| M2 | MonitoringService | Liste des sessions en cours |
-| M3 | MonitoringService | Affichage alertes temps reel |
+| M4 | MonitoringService | Rendre YOLO fonctionnel (download modele dans Docker) |
+| M5 | MonitoringService | Tester MediaPipe dans le container |
 | A1 | AnalyticsService | Interface dashboard admin |
 
 ### Priorite Moyenne
