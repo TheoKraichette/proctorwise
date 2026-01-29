@@ -317,13 +317,21 @@ async def home():
                 <div class="card">
                     <h2>Administration</h2>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px;">
-                        <a href="http://localhost:8006" style="padding: 30px; background: #f8f9fa; border-radius: 10px; text-decoration: none; text-align: center;">
-                            <h3 style="color: #333;">Analytics</h3>
-                            <p style="color: #666;">Statistiques</p>
+                        <a href="#" onclick="goToService('http://localhost:8006'); return false;" style="padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <h3 style="color: #fff; margin-bottom: 10px;">📊 Analytics</h3>
+                            <p style="color: rgba(255,255,255,0.8);">Dashboard & Statistiques</p>
                         </a>
-                        <a href="http://localhost:8001" style="padding: 30px; background: #f8f9fa; border-radius: 10px; text-decoration: none; text-align: center;">
-                            <h3 style="color: #333;">Utilisateurs</h3>
-                            <p style="color: #666;">Gestion</p>
+                        <a href="#" onclick="goToService('http://localhost:8005'); return false;" style="padding: 30px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <h3 style="color: #fff; margin-bottom: 10px;">🔔 Notifications</h3>
+                            <p style="color: rgba(255,255,255,0.8);">Historique & Preferences</p>
+                        </a>
+                        <a href="#" onclick="goToService('http://localhost:8003'); return false;" style="padding: 30px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <h3 style="color: #fff; margin-bottom: 10px;">👁️ Monitoring</h3>
+                            <p style="color: rgba(255,255,255,0.8);">Surveillance examens</p>
+                        </a>
+                        <a href="#" onclick="goToService('http://localhost:8001'); return false;" style="padding: 30px; background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <h3 style="color: #fff; margin-bottom: 10px;">👥 Utilisateurs</h3>
+                            <p style="color: rgba(255,255,255,0.8);">Gestion des comptes</p>
                         </a>
                     </div>
                 </div>
@@ -374,6 +382,11 @@ async def home():
         }
 
         function logout() { localStorage.removeItem('token'); window.location.href = 'http://localhost:8001'; }
+
+        function goToService(url) {
+            const token = localStorage.getItem('token');
+            window.location.href = url + '?token=' + token;
+        }
 
         function showMessage(id, text, isError = false) {
             const msg = document.getElementById(id);
