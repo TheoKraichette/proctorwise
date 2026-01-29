@@ -114,8 +114,7 @@ class SQLAlchemyNotificationRepository(NotificationRepository):
             user_id=result.user_id,
             email=result.email,
             email_enabled=result.email_enabled,
-            push_enabled=result.push_enabled,
-            push_token=result.push_token,
+            websocket_enabled=result.websocket_enabled,
             notification_types=result.notification_types or [],
             reminder_hours_before=result.reminder_hours_before or [24, 1]
         )
@@ -127,8 +126,7 @@ class SQLAlchemyNotificationRepository(NotificationRepository):
         if existing:
             existing.email = preference.email
             existing.email_enabled = preference.email_enabled
-            existing.push_enabled = preference.push_enabled
-            existing.push_token = preference.push_token
+            existing.websocket_enabled = preference.websocket_enabled
             existing.notification_types = preference.notification_types
             existing.reminder_hours_before = preference.reminder_hours_before
         else:
@@ -136,8 +134,7 @@ class SQLAlchemyNotificationRepository(NotificationRepository):
                 user_id=preference.user_id,
                 email=preference.email,
                 email_enabled=preference.email_enabled,
-                push_enabled=preference.push_enabled,
-                push_token=preference.push_token,
+                websocket_enabled=preference.websocket_enabled,
                 notification_types=preference.notification_types,
                 reminder_hours_before=preference.reminder_hours_before
             )

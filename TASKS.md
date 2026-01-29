@@ -14,8 +14,8 @@
 | UserService | Backend OK, UI OK, Roles OK, CORS OK, JWT OK | 100% |
 | ReservationService | Backend OK, UI OK, Exams+Questions+Resultats+Copies OK | 100% |
 | CorrectionService | Backend OK, integre via UI Reservation, Auto-grading OK | 100% |
+| NotificationService | Backend OK, Email+WS OK, Kafka OK, UI OK | 100% |
 | MonitoringService | Backend OK, WebSocket OK, **UI OK**, ML degrade | 90% |
-| NotificationService | Backend OK, Email+WS OK, Kafka OK, **UI manquante** | 85% |
 | AnalyticsService | Backend OK, PDF/CSV OK, **UI manquante** | 80% |
 | Spark Jobs | 3 jobs implementes, non testes | 90% |
 | Airflow DAGs | 4 DAGs configures, non testes | 95% |
@@ -199,7 +199,7 @@ Aucune - service complet et integre.
 
 ---
 
-## 5. NOTIFICATIONSERVICE (Port 8005) - UI MANQUANTE
+## 5. NOTIFICATIONSERVICE (Port 8005) - COMPLET
 
 ### Etat Actuel
 - **Backend**: Complet
@@ -212,13 +212,14 @@ Aucune - service complet et integre.
 - **Canaux**: Email (SMTP via MailHog), WebSocket
 - **Kafka**: Consumer actif pour evenements
 - **Templates**: Templates email dans `infrastructure/templates/`
-- **UI**: **MANQUANTE** - Pas d'interface pour voir l'historique
+- **UI**: Interface web complete (HTML embarque)
+  - Historique des notifications avec filtrage par type
+  - Gestion des preferences (canaux, types, rappels)
+  - Notifications temps reel via WebSocket (toast popups)
+  - Indicateur de connexion WebSocket
 
 ### Taches Restantes
-
-| ID | Tache | Priorite | Status |
-|----|-------|----------|--------|
-| N1 | Interface historique notifications | Moyenne | Non fait |
+Aucune - service complet.
 
 ---
 
@@ -340,7 +341,7 @@ Aucune - service complet et integre.
 - [ ] **Dashboard analytics (admin) - UI MANQUANTE**
 - [ ] **YOLO object detection non fonctionnel (modeles .pt manquants)**
 - [ ] **MediaPipe non teste en container**
-- [ ] Historique notifications (UI manquante)
+- [x] Historique notifications (UI complete)
 - [ ] Spark jobs testes avec donnees reelles
 
 ### Infrastructure
@@ -375,7 +376,6 @@ Aucune - service complet et integre.
 | ID | Service | Tache |
 |----|---------|-------|
 | A2 | AnalyticsService | Graphiques statistiques |
-| N1 | NotificationService | Interface historique notifications |
 | S1 | Spark/Airflow | Tester avec donnees reelles |
 
 ### Priorite Basse (optionnel)
