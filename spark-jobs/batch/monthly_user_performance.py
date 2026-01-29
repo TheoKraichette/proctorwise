@@ -99,7 +99,6 @@ def calculate_user_performance(submissions_df):
             .otherwise("needs_improvement")
         )
 
-
 def calculate_user_anomaly_profile(anomalies_df):
     """Calculate anomaly profile per user."""
     return anomalies_df.groupBy("user_id") \

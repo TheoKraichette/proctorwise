@@ -32,6 +32,14 @@ class QuestionModel(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ExamSlotModel(Base):
+    __tablename__ = "exam_slots"
+    slot_id = Column(String(36), primary_key=True)
+    exam_id = Column(String(36), nullable=False, index=True)
+    start_time = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class ReservationModel(Base):
     __tablename__ = "reservations"
     reservation_id = Column(String(36), primary_key=True)

@@ -29,9 +29,33 @@ kafka_publisher = KafkaEventPublisher(
     bootstrap_servers=os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 )
 ml_detector = HybridDetector()
-frame_storage = LocalFrameStorage() if os.getenv("USE_LOCAL_STORAGE") else HDFSFrameStorage()
+frame_storage = LocalFrameStorage(base_path=os.getenv("FRAME_STORAGE_PATH", "./local_storage")) if os.getenv("USE_LOCAL_STORAGE") else HDFSFrameStorage()
+
+# Singleton ProcessFrame to preserve _face_absent_start state across requests
+process_frame_use_case = ProcessFrame(repo, ml_detector, frame_storage, kafka_publisher)
 
 active_websockets: dict = {}
+
+
+@router.get("/sessions", response_model=List[MonitoringSessionResponse])
+def list_sessions(status: Optional[str] = None):
+    sessions = repo.get_all_sessions()
+    if status:
+        sessions = [s for s in sessions if s.status == status]
+    return [
+        MonitoringSessionResponse(
+            session_id=s.session_id,
+            reservation_id=s.reservation_id,
+            user_id=s.user_id,
+            exam_id=s.exam_id,
+            status=s.status,
+            started_at=s.started_at,
+            stopped_at=s.stopped_at,
+            total_frames_processed=s.total_frames_processed,
+            anomaly_count=s.anomaly_count
+        )
+        for s in sessions
+    ]
 
 
 @router.post("/sessions", response_model=MonitoringSessionResponse)
@@ -61,8 +85,6 @@ async def start_monitoring(request: StartMonitoringRequest):
 
 @router.post("/sessions/{session_id}/frame", response_model=ProcessFrameResponse)
 async def process_frame(session_id: str, request: ProcessFrameRequest):
-    use_case = ProcessFrame(repo, ml_detector, frame_storage, kafka_publisher)
-
     try:
         frame_bytes = base64.b64decode(request.frame_data)
         nparr = np.frombuffer(frame_bytes, np.uint8)
@@ -71,7 +93,7 @@ async def process_frame(session_id: str, request: ProcessFrameRequest):
         if frame is None:
             raise ValueError("Could not decode frame data")
 
-        anomalies = await use_case.execute(
+        anomalies = await process_frame_use_case.execute(
             session_id,
             frame,
             request.frame_number,
@@ -220,8 +242,7 @@ async def websocket_stream(websocket: WebSocket, session_id: str):
                 frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
                 if frame is not None:
-                    use_case = ProcessFrame(repo, ml_detector, frame_storage, kafka_publisher)
-                    anomalies = await use_case.execute(
+                    anomalies = await process_frame_use_case.execute(
                         session_id,
                         frame,
                         frame_number,

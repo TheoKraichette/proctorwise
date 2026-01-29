@@ -13,7 +13,7 @@ class MonitoringSessionModel(Base):
     exam_id = Column(String(36), nullable=False, index=True)
     status = Column(String(20), nullable=False, index=True)
     started_at = Column(DateTime, nullable=False)
-    stopped_at = Column(DateTime, nullable=True)
+    stopped_at = Column("ended_at", DateTime, nullable=True)
     total_frames_processed = Column(Integer, default=0)
     anomaly_count = Column(Integer, default=0)
 
