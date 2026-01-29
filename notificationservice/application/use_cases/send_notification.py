@@ -64,7 +64,7 @@ class SendNotification:
             except Exception as e:
                 errors.append(f"Email error: {str(e)}")
 
-        if channel in ["push", "both"] and preference and preference.push_enabled:
+        if channel in ["websocket", "both"] and preference and preference.websocket_enabled:
             try:
                 push_success = await self.push_sender.send(
                     user_id,

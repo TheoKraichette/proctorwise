@@ -26,7 +26,6 @@ class UserPreferenceModel(Base):
     user_id = Column(String(36), primary_key=True)
     email = Column(String(255), nullable=False)
     email_enabled = Column(Boolean, default=True)
-    push_enabled = Column(Boolean, default=True)
-    push_token = Column(String(500), nullable=True)
+    websocket_enabled = Column(Boolean, default=True)
     notification_types = Column(JSON, nullable=True)
     reminder_hours_before = Column(JSON, nullable=True)

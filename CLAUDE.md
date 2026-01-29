@@ -230,7 +230,7 @@ docker exec proctorwise-airflow airflow dags trigger full_analytics_pipeline
 - **ReservationService**: Web interface OK (full exam flow for student/teacher with results view)
 - **MonitoringService**: Web interface OK (proctor dashboard with sessions, alerts, WebSocket live feed)
 - **CorrectionService**: Backend only (integrated via ReservationService UI for grading + results)
-- **NotificationService**: Needs web interface
+- **NotificationService**: Web interface OK (notification history, preferences, real-time WebSocket)
 - **AnalyticsService**: Needs web interface for admin dashboard
 
 ## Recent Features
