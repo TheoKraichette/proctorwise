@@ -411,7 +411,7 @@ async def home():
 
         function logout() {
             localStorage.removeItem('token');
-            window.location.href = 'http://localhost:8001';
+            window.location.href = 'http://localhost:8001?logout=true';
         }
 
         function formatDateTime(iso) {

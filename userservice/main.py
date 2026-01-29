@@ -192,6 +192,15 @@ async def home():
 
         // Check if already logged in on page load
         window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // Check for logout request from other services
+            if (urlParams.get('logout') === 'true') {
+                localStorage.removeItem('token');
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return; // Stay on login page
+            }
+
             const token = localStorage.getItem('token');
             if (token) {
                 try {

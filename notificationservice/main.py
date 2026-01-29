@@ -413,7 +413,7 @@ async def home():
         function logout() {
             if (ws) ws.close();
             localStorage.removeItem('token');
-            window.location.href = 'http://localhost:8001';
+            window.location.href = 'http://localhost:8001?logout=true';
         }
 
         function showTab(tab) {

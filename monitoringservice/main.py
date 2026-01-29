@@ -448,7 +448,7 @@ async def home():
             stopAutoRefresh();
             disconnectWebSocket();
             localStorage.removeItem('token');
-            window.location.href = 'http://localhost:8001';
+            window.location.href = 'http://localhost:8001?logout=true';
         }
 
         // ========== AUTO REFRESH ==========
