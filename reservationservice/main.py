@@ -473,7 +473,7 @@ async def home():
             ['studentView', 'teacherView', 'proctorView', 'adminView', 'examView'].forEach(v => document.getElementById(v).classList.add('hidden'));
         }
 
-        function logout() { localStorage.removeItem('token'); window.location.href = 'http://localhost:8001'; }
+        function logout() { localStorage.removeItem('token'); window.location.href = 'http://localhost:8001?logout=true'; }
 
         function goToHub() { window.location.href = 'http://localhost:8001'; }
 
