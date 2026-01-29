@@ -483,9 +483,9 @@ async def home():
                 html += '<td><strong style="color:' + anomalyColor + ';">' + s.anomaly_count + '</strong></td>';
                 html += '<td><span class="status status-' + s.status + '">' + s.status + '</span></td>';
                 html += '<td style="white-space:nowrap;">';
-                html += '<button class="btn-small" onclick="openDetail(\'' + s.session_id + '\')">Details</button>';
+                html += '<button class="btn-small" onclick="openDetail(&apos;' + s.session_id + '&apos;)">Details</button>';
                 if (s.status === 'active') {
-                    html += ' <button class="btn-small btn-stop" onclick="stopSession(\'' + s.session_id + '\')">Arreter</button>';
+                    html += ' <button class="btn-small btn-stop" onclick="stopSession(&apos;' + s.session_id + '&apos;)">Arreter</button>';
                 }
                 html += '</td>';
                 html += '</tr>';
@@ -613,7 +613,7 @@ async def home():
 
                 // Stop button for active sessions
                 if (session.status === 'active') {
-                    html += '<div style="margin-bottom:20px;"><button class="btn-small btn-stop" onclick="stopSession(\'' + session.session_id + '\');closeDetail();">Arreter cette session</button></div>';
+                    html += '<div style="margin-bottom:20px;"><button class="btn-small btn-stop" onclick="stopSession(&apos;' + session.session_id + '&apos;);closeDetail();">Arreter cette session</button></div>';
                 }
 
                 // Anomaly summary
@@ -629,7 +629,7 @@ async def home():
 
                     // By type
                     if (Object.keys(summary.by_type).length > 0) {
-                        html += '<h3 style="margin:15px 0 10px;font-size:16px;">Par type d\'anomalie</h3>';
+                        html += '<h3 style="margin:15px 0 10px;font-size:16px;">Par type d&apos;anomalie</h3>';
                         html += '<div class="anomaly-type-tags">';
                         for (const [type, count] of Object.entries(summary.by_type)) {
                             html += '<span class="anomaly-type-tag"><strong>' + type.replace(/_/g, ' ') + '</strong>: ' + count + '</span>';
