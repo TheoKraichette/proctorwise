@@ -12,7 +12,7 @@ class YOLOObjectDetector(MLDetector):
         0: "person"
     }
 
-    def __init__(self, model_path: str = None, confidence_threshold: float = 0.5):
+    def __init__(self, model_path: str = None, confidence_threshold: float = 0.65):
         self.model = None
         self.model_path = model_path or "yolov8n.pt"
         self.confidence_threshold = confidence_threshold

@@ -53,13 +53,35 @@ CREATE TABLE IF NOT EXISTS exams (
     exam_id VARCHAR(36) PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     description TEXT,
-    duration_minutes INT NOT NULL,
-    total_marks INT NOT NULL,
-    passing_marks INT NOT NULL,
-    created_by VARCHAR(36) NOT NULL,
+    duration_minutes INT NOT NULL DEFAULT 60,
+    teacher_id VARCHAR(36) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_created_by (created_by)
+    INDEX idx_teacher_id (teacher_id)
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+    question_id VARCHAR(36) PRIMARY KEY,
+    exam_id VARCHAR(36) NOT NULL,
+    question_number INT NOT NULL,
+    question_type VARCHAR(20) NOT NULL,
+    question_text TEXT NOT NULL,
+    option_a VARCHAR(500),
+    option_b VARCHAR(500),
+    option_c VARCHAR(500),
+    option_d VARCHAR(500),
+    correct_answer VARCHAR(500) NOT NULL,
+    points FLOAT NOT NULL DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_exam_id (exam_id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_slots (
+    slot_id VARCHAR(36) PRIMARY KEY,
+    exam_id VARCHAR(36) NOT NULL,
+    start_time DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_exam_id (exam_id)
 );
 
 CREATE TABLE IF NOT EXISTS reservations (
@@ -68,9 +90,8 @@ CREATE TABLE IF NOT EXISTS reservations (
     exam_id VARCHAR(36) NOT NULL,
     start_time DATETIME NOT NULL,
     end_time DATETIME NOT NULL,
-    status ENUM('scheduled', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'scheduled',
+    status VARCHAR(50) NOT NULL DEFAULT 'scheduled',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_user_id (user_id),
     INDEX idx_exam_id (exam_id),
     INDEX idx_status (status),
@@ -87,7 +108,7 @@ CREATE TABLE IF NOT EXISTS monitoring_sessions (
     reservation_id VARCHAR(36) NOT NULL,
     user_id VARCHAR(36) NOT NULL,
     exam_id VARCHAR(36) NOT NULL,
-    status ENUM('active', 'paused', 'completed', 'terminated') NOT NULL DEFAULT 'active',
+    status ENUM('active', 'paused', 'completed', 'terminated', 'stopped') NOT NULL DEFAULT 'active',
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP NULL,
     total_frames_processed INT DEFAULT 0,
@@ -107,6 +128,7 @@ CREATE TABLE IF NOT EXISTS anomalies (
     confidence FLOAT,
     detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     frame_path VARCHAR(512),
+    description TEXT,
     metadata JSON,
     INDEX idx_session_id (session_id),
     INDEX idx_anomaly_type (anomaly_type),
