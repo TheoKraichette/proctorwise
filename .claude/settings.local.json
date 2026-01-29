@@ -8,6 +8,10 @@
       "Bash(docker exec:*)",
       "Bash(docker logs:*)",
       "Bash(docker restart:*)",
+      "Bash(tree:*)",
+      "Bash(xargs:*)",
+      "Bash(python3:*)",
+      "Bash(docker restart:*)",
       "Bash(node -e:*)",
       "Bash(for:*)",
       "Bash(do)",
@@ -16,8 +20,7 @@
       "Bash(echo:*)",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(python -c:*)",
-      "Bash(python3:*)"
+      "Bash(python -c:*)"
     ]
   }
 }
