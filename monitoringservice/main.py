@@ -55,8 +55,27 @@ async def home():
     <title>ProctorWise - Monitoring</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #e74c3c 0%, #e67e22 100%); min-height: 100vh; padding: 20px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #e74c3c 0%, #e67e22 100%); min-height: 100vh; padding-top: 80px; padding-left: 20px; padding-right: 20px; padding-bottom: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
+
+        /* Navbar */
+        .navbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255,255,255,0.98); box-shadow: 0 2px 20px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; z-index: 1000; }
+        .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; font-weight: bold; font-size: 18px; }
+        .navbar-brand:hover { color: #e74c3c; }
+        .navbar-brand .logo { font-size: 24px; }
+        .navbar-nav { display: flex; align-items: center; gap: 8px; }
+        .nav-link { padding: 8px 16px; border-radius: 8px; text-decoration: none; color: #555; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .nav-link:hover { background: #f0f0f0; color: #333; }
+        .nav-link.active { background: linear-gradient(135deg, #e74c3c 0%, #e67e22 100%); color: white; }
+        .nav-link .nav-icon { font-size: 16px; }
+        .navbar-user { display: flex; align-items: center; gap: 12px; }
+        .nav-user-name { font-weight: 500; color: #333; font-size: 14px; }
+
+        /* Notification Bell */
+        .notif-bell { position: relative; cursor: pointer; font-size: 20px; padding: 8px; border-radius: 50%; transition: background 0.2s; text-decoration: none; }
+        .notif-bell:hover { background: #f0f0f0; }
+        .notif-badge { position: absolute; top: 2px; right: 2px; background: #e94560; color: white; font-size: 10px; font-weight: bold; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .notif-badge.hidden { display: none; }
 
         /* Header */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding: 20px; background: rgba(255,255,255,0.95); border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
@@ -119,6 +138,7 @@ async def home():
         /* Role badge */
         .role-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
         .role-proctor { background: #fff3cd; color: #856404; }
+        .role-admin { background: #f8d7da; color: #721c24; }
 
         /* Login/Access screens */
         .login-prompt { text-align: center; padding: 60px 20px; }
@@ -189,6 +209,24 @@ async def home():
     </style>
 </head>
 <body>
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar" style="display: none;">
+        <a href="http://localhost:8001" class="navbar-brand" onclick="goToHub(); return false;">
+            <span class="logo">🎓</span>
+            ProctorWise
+        </a>
+        <div class="navbar-nav" id="navLinks"></div>
+        <div class="navbar-user">
+            <span id="navUserName" class="nav-user-name"></span>
+            <span id="navUserRole" class="role-badge role-proctor"></span>
+            <a href="#" id="notifBellLink" class="notif-bell" title="Notifications">
+                🔔
+                <span class="notif-badge hidden" id="notifBadge">0</span>
+            </a>
+            <button class="btn-logout" onclick="logout()">Deconnexion</button>
+        </div>
+    </nav>
+
     <div class="container">
         <!-- Login required -->
         <div id="loginRequired" class="card login-prompt">
@@ -206,14 +244,6 @@ async def home():
 
         <!-- Main app -->
         <div id="mainApp" class="hidden">
-            <div class="header">
-                <h1>ProctorWise - Surveillance</h1>
-                <div class="user-info">
-                    <span id="userName"></span>
-                    <span id="userRole" class="role-badge role-proctor"></span>
-                    <button class="btn-logout" onclick="logout()">Deconnexion</button>
-                </div>
-            </div>
 
             <!-- Stats overview -->
             <div class="stats-bar">
@@ -317,7 +347,7 @@ async def home():
                     email: payload.email,
                     role: payload.role || 'student'
                 };
-                if (currentUser.role !== 'proctor') {
+                if (currentUser.role !== 'proctor' && currentUser.role !== 'admin') {
                     document.getElementById('loginRequired').classList.add('hidden');
                     document.getElementById('wrongRole').classList.remove('hidden');
                     return;
@@ -333,11 +363,61 @@ async def home():
             document.getElementById('loginRequired').classList.add('hidden');
             document.getElementById('wrongRole').classList.add('hidden');
             document.getElementById('mainApp').classList.remove('hidden');
-            document.getElementById('userName').textContent = currentUser.name;
-            document.getElementById('userRole').textContent = 'Surveillant';
+            document.getElementById('navbar').style.display = 'flex';
+
+            // Update navbar user info
+            document.getElementById('navUserName').textContent = currentUser.name;
+            const roleEl = document.getElementById('navUserRole');
+            const roleNames = { proctor: 'Surveillant', admin: 'Admin' };
+            roleEl.textContent = roleNames[currentUser.role] || currentUser.role;
+            roleEl.className = 'role-badge role-' + currentUser.role;
+
+            renderNavLinks();
             loadActiveSessions();
             loadStats();
             startAutoRefresh();
+        }
+
+        function renderNavLinks() {
+            const nav = document.getElementById('navLinks');
+            const token = localStorage.getItem('token');
+            const links = [
+                { name: 'Examens', icon: '📝', url: 'http://localhost:8000', active: false, roles: ['student', 'teacher', 'admin'] },
+                { name: 'Monitoring', icon: '👁️', url: 'http://localhost:8003', active: true, roles: ['proctor', 'admin'] },
+                { name: 'Analytics', icon: '📊', url: 'http://localhost:8006', active: false, roles: ['admin'] }
+            ];
+            nav.innerHTML = links
+                .filter(l => l.roles.includes(currentUser.role))
+                .map(l => '<a href="' + l.url + '?token=' + token + '" class="nav-link ' + (l.active ? 'active' : '') + '"><span class="nav-icon">' + l.icon + '</span> ' + l.name + '</a>')
+                .join('');
+            loadNotificationCount();
+        }
+
+        async function loadNotificationCount() {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch('http://localhost:8005/notifications/user/' + currentUser.user_id);
+                if (res.ok) {
+                    const notifications = await res.json();
+                    const now = new Date();
+                    const recentCount = notifications.filter(n => {
+                        const created = new Date(n.created_at);
+                        return (now - created) / (1000 * 60 * 60) < 24;
+                    }).length;
+                    const badge = document.getElementById('notifBadge');
+                    if (recentCount > 0) {
+                        badge.textContent = recentCount > 99 ? '99+' : recentCount;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (e) { console.log('Could not load notifications'); }
+            document.getElementById('notifBellLink').href = 'http://localhost:8005?token=' + token;
+        }
+
+        function goToHub() {
+            window.location.href = 'http://localhost:8001';
         }
 
         function logout() {

@@ -48,6 +48,14 @@ class SQLAlchemyReservationRepository(ReservationRepository):
         finally:
             session.close()
 
+    def get_all(self) -> List[Reservation]:
+        session = SessionLocal()
+        try:
+            results = session.query(ReservationModel).order_by(ReservationModel.created_at.desc()).all()
+            return [self._to_entity(r) for r in results]
+        finally:
+            session.close()
+
     def update(self, reservation: Reservation) -> Optional[Reservation]:
         session = SessionLocal()
         try:
