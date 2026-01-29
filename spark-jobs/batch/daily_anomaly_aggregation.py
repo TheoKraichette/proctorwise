@@ -26,7 +26,7 @@ def create_spark_session():
         .getOrCreate()
 
 
-def load_anomaly_data(spark, date_str):
+def load_anomaly_data(spark, date_str, db_user, db_password):
     """Load anomaly data from MariaDB for the specified date."""
     jdbc_url = "jdbc:mysql://mariadb:3306/proctorwise_monitoring"
 
@@ -39,8 +39,8 @@ def load_anomaly_data(spark, date_str):
              JOIN monitoring_sessions s ON a.session_id = s.session_id
              WHERE DATE(a.detected_at) = '{date_str}') as anomaly_data
         """) \
-        .option("user", "proctorwise") \
-        .option("password", "proctorwise_secret") \
+        .option("user", db_user) \
+        .option("password", db_password) \
         .option("driver", "com.mysql.cj.jdbc.Driver") \
         .load()
 
@@ -100,6 +100,10 @@ def save_to_hdfs(df, output_path):
 def main(date_str=None):
     spark = create_spark_session()
 
+    # Read credentials from Spark conf (passed via --conf spark.jdbc.user=...)
+    db_user = spark.conf.get("spark.jdbc.user", "proctorwise")
+    db_password = spark.conf.get("spark.jdbc.password", "proctorwise_secret")
+
     if not date_str:
         yesterday = datetime.utcnow() - timedelta(days=1)
         date_str = yesterday.strftime("%Y-%m-%d")
@@ -109,7 +113,7 @@ def main(date_str=None):
     year, month, day = date_str.split("-")
     base_output_path = f"/proctorwise/processed/anomaly_reports/{year}/{month}"
 
-    anomalies_df = load_anomaly_data(spark, date_str)
+    anomalies_df = load_anomaly_data(spark, date_str, db_user, db_password)
     anomalies_df.cache()
 
     record_count = anomalies_df.count()

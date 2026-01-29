@@ -24,7 +24,7 @@ def create_spark_session():
         .getOrCreate()
 
 
-def load_user_submissions(spark, year, month):
+def load_user_submissions(spark, year, month, db_user, db_password):
     """Load submissions data for the specified month."""
     jdbc_url = "jdbc:mysql://mariadb:3306/proctorwise_corrections"
 
@@ -37,15 +37,15 @@ def load_user_submissions(spark, year, month):
              WHERE YEAR(submitted_at) = {year}
                AND MONTH(submitted_at) = {month}) as submissions_data
         """) \
-        .option("user", "proctorwise") \
-        .option("password", "proctorwise_secret") \
+        .option("user", db_user) \
+        .option("password", db_password) \
         .option("driver", "com.mysql.cj.jdbc.Driver") \
         .load()
 
     return submissions_df
 
 
-def load_user_anomalies(spark, year, month):
+def load_user_anomalies(spark, year, month, db_user, db_password):
     """Load anomalies data for the specified month."""
     jdbc_url = "jdbc:mysql://mariadb:3306/proctorwise_monitoring"
 
@@ -59,8 +59,8 @@ def load_user_anomalies(spark, year, month):
              WHERE YEAR(a.detected_at) = {year}
                AND MONTH(a.detected_at) = {month}) as anomalies_data
         """) \
-        .option("user", "proctorwise") \
-        .option("password", "proctorwise_secret") \
+        .option("user", db_user) \
+        .option("password", db_password) \
         .option("driver", "com.mysql.cj.jdbc.Driver") \
         .load()
 
@@ -160,6 +160,10 @@ def save_to_hdfs(df, output_path):
 def main(year=None, month=None):
     spark = create_spark_session()
 
+    # Read credentials from Spark conf (passed via --conf spark.jdbc.user=...)
+    db_user = spark.conf.get("spark.jdbc.user", "proctorwise")
+    db_password = spark.conf.get("spark.jdbc.password", "proctorwise_secret")
+
     if not year or not month:
         last_month = datetime.utcnow().replace(day=1) - timedelta(days=1)
         year = last_month.year
@@ -169,7 +173,7 @@ def main(year=None, month=None):
 
     base_output_path = f"/proctorwise/processed/user_performance/{year}/{month:02d}"
 
-    submissions_df = load_user_submissions(spark, year, month)
+    submissions_df = load_user_submissions(spark, year, month, db_user, db_password)
     submissions_df.cache()
 
     submission_count = submissions_df.count()
@@ -179,7 +183,7 @@ def main(year=None, month=None):
         performance_df = calculate_user_performance(submissions_df)
         print(f"Calculated performance for {performance_df.count()} users")
 
-        anomalies_df = load_user_anomalies(spark, year, month)
+        anomalies_df = load_user_anomalies(spark, year, month, db_user, db_password)
         anomaly_count = anomalies_df.count()
         print(f"Loaded {anomaly_count} anomaly records")
 

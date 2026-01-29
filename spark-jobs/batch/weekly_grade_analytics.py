@@ -22,7 +22,7 @@ def create_spark_session():
         .getOrCreate()
 
 
-def load_submissions_data(spark, start_date, end_date):
+def load_submissions_data(spark, start_date, end_date, db_user, db_password):
     """Load submissions data from MariaDB for the specified date range."""
     jdbc_url = "jdbc:mysql://mariadb:3306/proctorwise_corrections"
 
@@ -36,33 +36,24 @@ def load_submissions_data(spark, start_date, end_date):
                AND submitted_at < '{end_date}'
                AND status = 'graded') as submissions_data
         """) \
-        .option("user", "proctorwise") \
-        .option("password", "proctorwise_secret") \
+        .option("user", db_user) \
+        .option("password", db_password) \
         .option("driver", "com.mysql.cj.jdbc.Driver") \
         .load()
 
     return submissions_df
 
 
-def load_answers_data(spark, submission_ids):
-    """Load answers data for the given submissions."""
+def load_all_answers(spark, db_user, db_password):
+    """Load all answers data from MariaDB (filtered via JOIN with submissions)."""
     jdbc_url = "jdbc:mysql://mariadb:3306/proctorwise_corrections"
-
-    if not submission_ids:
-        return None
-
-    ids_str = ",".join([f"'{sid}'" for sid in submission_ids])
 
     answers_df = spark.read \
         .format("jdbc") \
         .option("url", jdbc_url) \
-        .option("dbtable", f"""
-            (SELECT *
-             FROM answers
-             WHERE submission_id IN ({ids_str})) as answers_data
-        """) \
-        .option("user", "proctorwise") \
-        .option("password", "proctorwise_secret") \
+        .option("dbtable", "(SELECT * FROM answers) as answers_data") \
+        .option("user", db_user) \
+        .option("password", db_password) \
         .option("driver", "com.mysql.cj.jdbc.Driver") \
         .load()
 
@@ -149,6 +140,10 @@ def save_to_hdfs(df, output_path):
 def main(week_start=None):
     spark = create_spark_session()
 
+    # Read credentials from Spark conf (passed via --conf spark.jdbc.user=...)
+    db_user = spark.conf.get("spark.jdbc.user", "proctorwise")
+    db_password = spark.conf.get("spark.jdbc.password", "proctorwise_secret")
+
     if not week_start:
         today = datetime.utcnow()
         days_since_sunday = (today.weekday() + 1) % 7
@@ -167,7 +162,9 @@ def main(week_start=None):
     submissions_df = load_submissions_data(
         spark,
         week_start,
-        end_date.strftime("%Y-%m-%d")
+        end_date.strftime("%Y-%m-%d"),
+        db_user,
+        db_password
     )
     submissions_df.cache()
 
@@ -190,15 +187,19 @@ def main(week_start=None):
         save_to_hdfs(grading_efficiency, f"{base_output_path}/grading_efficiency")
         print(f"Saved grading efficiency: {grading_efficiency.count()} records")
 
-        submission_ids = [row.submission_id for row in submissions_df.select("submission_id").collect()]
-        if submission_ids:
-            answers_df = load_answers_data(spark, submission_ids[:1000])
-            if answers_df is not None:
-                question_difficulty = calculate_question_difficulty(answers_df)
-                if question_difficulty is not None:
-                    question_difficulty = question_difficulty.withColumn("week_start", lit(week_start))
-                    save_to_hdfs(question_difficulty, f"{base_output_path}/question_difficulty")
-                    print(f"Saved question difficulty: {question_difficulty.count()} records")
+        # JOIN-based approach: no collect(), no truncation, all submissions processed
+        all_answers_df = load_all_answers(spark, db_user, db_password)
+        answers_df = all_answers_df.join(
+            submissions_df.select("submission_id"),
+            "submission_id"
+        )
+        answer_count = answers_df.count()
+        if answer_count > 0:
+            question_difficulty = calculate_question_difficulty(answers_df)
+            if question_difficulty is not None:
+                question_difficulty = question_difficulty.withColumn("week_start", lit(week_start))
+                save_to_hdfs(question_difficulty, f"{base_output_path}/question_difficulty")
+                print(f"Saved question difficulty: {question_difficulty.count()} records")
 
         summary = {
             "week_start": week_start,

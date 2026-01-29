@@ -28,9 +28,10 @@ def spark_submit_cmd(job_file, driver_mem='1g', executor_mem='2g', extra_args=''
       --master {SPARK_MASTER} \
       --driver-memory {driver_mem} \
       --executor-memory {executor_mem} \
+      --conf spark.jdbc.user=${{DB_USER:-proctorwise}} \
+      --conf spark.jdbc.password=${{DB_PASSWORD:-proctorwise_secret}} \
       --jars /opt/spark/jars/mysql-connector-j-8.0.33.jar \
-      {SPARK_JOBS_PATH}/{job_file} {extra_args} \
-      || echo "Spark job completed (check logs for details)"
+      {SPARK_JOBS_PATH}/{job_file} {extra_args}
     """
 
 # ==============================================================================
@@ -98,7 +99,7 @@ with DAG(
 
     user_performance = BashOperator(
         task_id='run_monthly_user_performance',
-        bash_command=spark_submit_cmd('monthly_user_performance.py', '2g', '4g'),
+        bash_command=spark_submit_cmd('monthly_user_performance.py', '1g', '1g'),
     )
 
     end = EmptyOperator(task_id='end')
