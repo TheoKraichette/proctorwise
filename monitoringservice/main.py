@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
@@ -5,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from interface.api.controllers import monitoring_controller
 from infrastructure.database.models import Base
 from infrastructure.database.mariadb_cluster import engine
+
+_PUBLIC_HOST = os.getenv("PUBLIC_HOST", "localhost")
 
 
 @asynccontextmanager
@@ -46,7 +49,7 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    return """
+    html = """
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1104,3 +1107,4 @@ async def home():
 </body>
 </html>
 """
+    return html.replace("//localhost:", "//" + _PUBLIC_HOST + ":")

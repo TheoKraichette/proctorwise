@@ -3,7 +3,7 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # Permet de lancer manuellement depuis GitHub
+  workflow_dispatch:
 
 env:
   PROJECT_PATH: /opt/proctorwise
@@ -23,29 +23,34 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          port: ${{ secrets.VPS_PORT }}
+          command_timeout: 30m
           script: |
-            echo "🚀 Starting deployment..."
+            echo "Starting deployment..."
 
-            # Aller dans le dossier du projet
             cd ${{ env.PROJECT_PATH }}
 
-            # Récupérer les dernières modifications
+            # Pull latest code
             git fetch origin main
             git reset --hard origin/main
 
-            # Reconstruire et relancer les containers modifiés
+            # Update PUBLIC_HOST in .env with VPS IP
+            PUBLIC_IP=$(curl -s ifconfig.me || echo "${{ secrets.VPS_HOST }}")
+            sed -i "s/PUBLIC_HOST=.*/PUBLIC_HOST=$PUBLIC_IP/" .env
+
+            # Build and restart services
             docker compose pull
             docker compose up -d --build
 
-            # Nettoyer les images inutilisées
+            # Clean up unused images
             docker image prune -f
 
-            # Vérifier que les services sont up
-            sleep 10
+            # Wait for services to start
+            echo "Waiting for services to start..."
+            sleep 30
             docker compose ps
 
-            echo "✅ Deployment completed successfully!"
+            echo "Deployment completed!"
 
       - name: Health Check
         uses: appleboy/ssh-action@v1.0.3
@@ -53,17 +58,30 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
+          port: ${{ secrets.VPS_PORT }}
           script: |
-            echo "🏥 Running health checks..."
+            echo "Running health checks..."
 
-            # Vérifier les services principaux
-            curl -sf http://localhost:8001/health || echo "⚠️ UserService unhealthy"
-            curl -sf http://localhost:8000/health || echo "⚠️ ReservationService unhealthy"
-            curl -sf http://localhost:8003/health || echo "⚠️ MonitoringService unhealthy"
-            curl -sf http://localhost:8006/health || echo "⚠️ AnalyticsService unhealthy"
+            HEALTHY=0
+            TOTAL=6
 
-            echo "✅ Health checks completed!"
+            for port in 8001 8000 8003 8004 8005 8006; do
+              if curl -sf --max-time 10 http://localhost:$port/health > /dev/null 2>&1; then
+                echo "OK - Port $port"
+                HEALTHY=$((HEALTHY + 1))
+              else
+                echo "FAIL - Port $port"
+              fi
+            done
+
+            echo "$HEALTHY/$TOTAL services healthy"
+
+            if [ $HEALTHY -lt 4 ]; then
+              echo "Too many services down!"
+              exit 1
+            fi
+
+            echo "Health checks passed!"
 
   notify:
     name: Notify on Failure
@@ -74,5 +92,4 @@ jobs:
     steps:
       - name: Send failure notification
         run: |
-          echo "❌ Deployment failed! Check the logs."
-          # Tu peux ajouter ici un webhook Discord/Slack si tu veux
+          echo "Deployment failed! Check the logs."

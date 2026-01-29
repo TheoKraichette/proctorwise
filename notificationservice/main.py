@@ -14,6 +14,8 @@ from infrastructure.events.kafka_consumer import KafkaEventConsumer
 from infrastructure.database.mariadb_cluster import engine
 from infrastructure.database.models import Base
 
+_PUBLIC_HOST = os.getenv("PUBLIC_HOST", "localhost")
+
 consumer_task = None
 
 
@@ -76,7 +78,7 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    return """
+    html = """
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -694,3 +696,4 @@ async def home():
 </body>
 </html>
 """
+    return html.replace("//localhost:", "//" + _PUBLIC_HOST + ":")

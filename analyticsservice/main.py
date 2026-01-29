@@ -1,7 +1,10 @@
+import os
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from interface.api.controllers import analytics_controller
+
+_PUBLIC_HOST = os.getenv("PUBLIC_HOST", "localhost")
 
 app = FastAPI(
     title="ProctorWise Analytics Service",
@@ -27,7 +30,7 @@ def health_check():
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    return """
+    html = """
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -663,3 +666,4 @@ async def home():
 </body>
 </html>
 """
+    return html.replace("//localhost:", "//" + _PUBLIC_HOST + ":")
