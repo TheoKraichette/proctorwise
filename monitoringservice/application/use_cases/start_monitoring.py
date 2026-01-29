@@ -13,7 +13,11 @@ class StartMonitoring:
     async def execute(self, reservation_id: str, user_id: str, exam_id: str) -> MonitoringSession:
         existing = self.repository.get_active_session_by_reservation(reservation_id)
         if existing:
-            raise ValueError(f"Active monitoring session already exists for reservation {reservation_id}")
+            # Auto-stop the orphaned session instead of blocking
+            existing.status = "stopped"
+            existing.stopped_at = datetime.utcnow()
+            self.repository.update_session(existing)
+            print(f"Auto-stopped orphaned session {existing.session_id} for reservation {reservation_id}")
 
         session_id = str(uuid.uuid4())
         session = MonitoringSession(

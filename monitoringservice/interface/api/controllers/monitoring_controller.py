@@ -1,6 +1,6 @@
 import base64
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 import numpy as np
@@ -43,6 +43,14 @@ live_view_websockets: dict = {}  # session_id -> [WebSocket]
 @router.get("/sessions", response_model=List[MonitoringSessionResponse])
 def list_sessions(status: Optional[str] = None):
     sessions = repo.get_all_sessions()
+    # Auto-stop stale sessions (active for more than 3 hours = orphaned)
+    now = datetime.utcnow()
+    for s in sessions:
+        if s.status == "active" and s.started_at and (now - s.started_at) > timedelta(hours=3):
+            s.status = "stopped"
+            s.stopped_at = now
+            repo.update_session(s)
+            print(f"Auto-stopped stale session {s.session_id} (started {s.started_at})")
     if status:
         sessions = [s for s in sessions if s.status == status]
     return [
