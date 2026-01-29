@@ -4,6 +4,7 @@ from application.use_cases.create_reservation import CreateReservation
 from application.use_cases.cancel_reservation import CancelReservation
 from application.use_cases.list_reservations import ListReservationsByUser
 from infrastructure.repositories.sqlalchemy_reservation_repository import SQLAlchemyReservationRepository
+from infrastructure.repositories.sqlalchemy_exam_repository import SQLAlchemyExamRepository
 from infrastructure.events.kafka_publisher import KafkaEventPublisher
 from interface.api.schemas.reservation_request import ReservationCreateRequest
 from interface.api.schemas.reservation_response import ReservationResponse
@@ -12,17 +13,19 @@ from typing import List
 router = APIRouter(prefix="/reservations", tags=["Reservations"])
 
 repo = SQLAlchemyReservationRepository()
+exam_repo = SQLAlchemyExamRepository()
 kafka_bootstrap = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 kafka_publisher = KafkaEventPublisher(bootstrap_servers=kafka_bootstrap)
 
 @router.post("/", response_model=ReservationResponse)
 async def create_reservation(request: ReservationCreateRequest):
-    use_case = CreateReservation(repo, kafka_publisher)
+    use_case = CreateReservation(repo, kafka_publisher, exam_repo)
     reservation = await use_case.execute(
         request.user_id,
         request.exam_id,
         request.start_time,
-        request.end_time
+        request.end_time,
+        request.student_name
     )
     return ReservationResponse(
         reservation_id=reservation.reservation_id,

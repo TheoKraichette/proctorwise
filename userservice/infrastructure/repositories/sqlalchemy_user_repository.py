@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from infrastructure.database.models import UserModel
 from infrastructure.database.mariadb_cluster import SessionLocal
 from domain.entities.user import User
@@ -36,6 +36,22 @@ class SQLAlchemyUserRepository(UserRepository):
         try:
             db_user = session.query(UserModel).filter_by(email=email).first()
             return self._to_entity(db_user) if db_user else None
+        finally:
+            session.close()
+
+    def get_by_role(self, role: str) -> List[User]:
+        session = SessionLocal()
+        try:
+            db_users = session.query(UserModel).filter_by(role=role, is_active=True).all()
+            return [self._to_entity(u) for u in db_users]
+        finally:
+            session.close()
+
+    def get_all(self) -> List[User]:
+        session = SessionLocal()
+        try:
+            db_users = session.query(UserModel).all()
+            return [self._to_entity(u) for u in db_users]
         finally:
             session.close()
 

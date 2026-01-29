@@ -1,3 +1,4 @@
+from typing import List
 from fastapi import APIRouter, HTTPException
 from application.use_cases.register_user import RegisterUser
 from application.use_cases.login_user import LoginUser
@@ -8,6 +9,41 @@ from interface.api.schemas.user_response import UserResponse, TokenResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
 repo = SQLAlchemyUserRepository()
+
+
+@router.get("/role/{role}", response_model=List[UserResponse])
+def get_users_by_role(role: str):
+    """Get all active users with a specific role (for internal service communication)"""
+    valid_roles = ["student", "teacher", "proctor", "admin"]
+    if role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+    users = repo.get_by_role(role)
+    return [
+        UserResponse(
+            user_id=u.user_id,
+            name=u.name,
+            email=u.email,
+            role=u.role,
+            is_active=u.is_active,
+            created_at=u.created_at
+        ) for u in users
+    ]
+
+
+@router.get("/", response_model=List[UserResponse])
+def get_all_users():
+    """Get all users (admin only in production)"""
+    users = repo.get_all()
+    return [
+        UserResponse(
+            user_id=u.user_id,
+            name=u.name,
+            email=u.email,
+            role=u.role,
+            is_active=u.is_active,
+            created_at=u.created_at
+        ) for u in users
+    ]
 
 @router.post("/register", response_model=UserResponse)
 def register_user(request: UserCreateRequest):
