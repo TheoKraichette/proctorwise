@@ -20,7 +20,8 @@
       "Bash(echo:*)",
       "Bash(fi)",
       "Bash(done)",
-      "Bash(python -c:*)"
+      "Bash(python -c:*)",
+      "Bash(node -c main.py)"
     ]
   }
 }

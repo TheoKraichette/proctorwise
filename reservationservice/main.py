@@ -43,12 +43,34 @@ async def home():
     <title>ProctorWise - Reservations</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 1000px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: rgba(255,255,255,0.95); border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
-        .header h1 { color: #333; font-size: 24px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); min-height: 100vh; padding-top: 70px; }
+
+        /* Navbar */
+        .navbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255,255,255,0.98); box-shadow: 0 2px 20px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; z-index: 1000; }
+        .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; font-weight: bold; font-size: 18px; }
+        .navbar-brand:hover { color: #11998e; }
+        .navbar-brand .logo { font-size: 24px; }
+        .navbar-nav { display: flex; align-items: center; gap: 8px; }
+        .nav-link { padding: 8px 16px; border-radius: 8px; text-decoration: none; color: #555; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .nav-link:hover { background: #f0f0f0; color: #333; }
+        .nav-link.active { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .nav-link .nav-icon { font-size: 16px; }
+        .navbar-user { display: flex; align-items: center; gap: 12px; }
+        .user-name { font-weight: 500; color: #333; font-size: 14px; }
+        .btn-logout { padding: 8px 16px; background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+        .btn-logout:hover { background: #d63050; }
+        .btn-home { padding: 8px 12px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.2s; text-decoration: none; }
+        .btn-home:hover { background: #e0e0e0; }
+
+        /* Notification Bell */
+        .notif-bell { position: relative; cursor: pointer; font-size: 20px; padding: 8px; border-radius: 50%; transition: background 0.2s; text-decoration: none; }
+        .notif-bell:hover { background: #f0f0f0; }
+        .notif-badge { position: absolute; top: 2px; right: 2px; background: #e94560; color: white; font-size: 10px; font-weight: bold; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .notif-badge.hidden { display: none; }
+
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { display: none; } /* Hidden - replaced by navbar */
         .user-info { display: flex; align-items: center; gap: 15px; }
-        .btn-logout { padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
         .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-bottom: 20px; }
         .card h2 { color: #333; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #11998e; padding-bottom: 10px; }
         .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
@@ -103,11 +125,6 @@ async def home():
         .question-nav button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #e0e0e0; background: white; cursor: pointer; font-weight: bold; }
         .question-nav button.answered { background: #d4edda; border-color: #28a745; }
         .question-nav button.current { background: #667eea; color: white; border-color: #667eea; }
-        /* Webcam proctoring styles */
-        #webcamContainer { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 3px solid #667eea; }
-        #webcamVideo { width: 180px; height: 135px; object-fit: cover; display: block; }
-        #webcamLabel { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(102,126,234,0.85); color: white; text-align: center; font-size: 11px; padding: 3px 0; font-weight: 600; }
-        #webcamCanvas { display: none; }
     </style>
 </head>
 <body>
@@ -118,15 +135,28 @@ async def home():
             <a href="http://localhost:8001">Se connecter</a>
         </div>
 
-        <div id="mainApp" class="hidden">
-            <div class="header">
-                <h1>ProctorWise</h1>
-                <div class="user-info">
-                    <span id="userName"></span>
-                    <span id="userRole" class="role-badge"></span>
-                    <button class="btn-logout" onclick="logout()">Deconnexion</button>
-                </div>
+        <!-- Navbar -->
+        <nav id="navbar" class="navbar hidden">
+            <a href="#" onclick="goToHub(); return false;" class="navbar-brand">
+                <span class="logo">🎓</span>
+                <span>ProctorWise</span>
+            </a>
+            <div class="navbar-nav" id="navLinks">
+                <a href="#" class="nav-link active"><span class="nav-icon">📝</span> Examens</a>
             </div>
+            <div class="navbar-user">
+                <span class="user-name" id="userName"></span>
+                <span id="userRole" class="role-badge"></span>
+                <a href="#" id="notifBellLink" class="notif-bell" title="Notifications">
+                    🔔
+                    <span class="notif-badge hidden" id="notifBadge">0</span>
+                </a>
+                <a href="#" onclick="goToHub(); return false;" class="btn-home" title="Hub">🏠</a>
+                <button class="btn-logout" onclick="logout()">Deconnexion</button>
+            </div>
+        </nav>
+
+        <div id="mainApp" class="hidden">
 
             <!-- Student View -->
             <div id="studentView" class="hidden">
@@ -160,13 +190,6 @@ async def home():
                     <div id="studentReservations"></div>
                 </div>
             </div>
-
-            <!-- Webcam proctoring overlay (shown during exam) -->
-            <div id="webcamContainer" class="hidden" style="position:relative;">
-                <video id="webcamVideo" autoplay muted playsinline></video>
-                <span id="webcamLabel">Surveillance active</span>
-            </div>
-            <canvas id="webcamCanvas"></canvas>
 
             <!-- Exam Taking View -->
             <div id="examView" class="hidden exam-container">
@@ -326,26 +349,37 @@ async def home():
 
             <!-- Admin View -->
             <div id="adminView" class="hidden">
-                <div class="card">
-                    <h2>Administration</h2>
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-top: 20px;">
-                        <a href="#" onclick="goToService('http://localhost:8006'); return false;" style="padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <h3 style="color: #fff; margin-bottom: 10px;">📊 Analytics</h3>
-                            <p style="color: rgba(255,255,255,0.8);">Dashboard & Statistiques</p>
-                        </a>
-                        <a href="#" onclick="goToService('http://localhost:8005'); return false;" style="padding: 30px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <h3 style="color: #fff; margin-bottom: 10px;">🔔 Notifications</h3>
-                            <p style="color: rgba(255,255,255,0.8);">Historique & Preferences</p>
-                        </a>
-                        <a href="#" onclick="goToService('http://localhost:8003'); return false;" style="padding: 30px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <h3 style="color: #fff; margin-bottom: 10px;">👁️ Monitoring</h3>
-                            <p style="color: rgba(255,255,255,0.8);">Surveillance examens</p>
-                        </a>
-                        <a href="#" onclick="goToService('http://localhost:8001'); return false;" style="padding: 30px; background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%); border-radius: 10px; text-decoration: none; text-align: center; color: white; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
-                            <h3 style="color: #fff; margin-bottom: 10px;">👥 Utilisateurs</h3>
-                            <p style="color: rgba(255,255,255,0.8);">Gestion des comptes</p>
-                        </a>
+                <!-- Stats Overview -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="card" style="text-align: center; padding: 20px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #11998e;" id="adminStatExams">-</div>
+                        <div style="color: #666; font-size: 13px;">Examens</div>
                     </div>
+                    <div class="card" style="text-align: center; padding: 20px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #667eea;" id="adminStatReservations">-</div>
+                        <div style="color: #666; font-size: 13px;">Reservations</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 20px;">
+                        <div style="font-size: 28px; font-weight: bold; color: #e74c3c;" id="adminStatQuestions">-</div>
+                        <div style="color: #666; font-size: 13px;">Questions</div>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab active" onclick="showAdminTab('allExams')">Tous les examens</button>
+                    <button class="tab" onclick="showAdminTab('allReservations')">Toutes les reservations</button>
+                </div>
+
+                <!-- All Exams Tab -->
+                <div id="allExamsTab" class="card">
+                    <h2>Tous les examens</h2>
+                    <div id="adminExamsList"></div>
+                </div>
+
+                <!-- All Reservations Tab -->
+                <div id="allReservationsTab" class="card hidden">
+                    <h2>Toutes les reservations</h2>
+                    <div id="adminReservationsList"></div>
                 </div>
             </div>
         </div>
@@ -355,45 +389,84 @@ async def home():
         let currentUser = null;
         let examData = { questions: [], answers: {}, currentIndex: 0, examId: null, reservationId: null, duration: 0, startTime: null };
         let timerInterval = null;
-        // Webcam proctoring state
-        let webcamStream = null;
-        let monitoringSessionId = null;
-        let frameCaptureInterval = null;
-        let frameCounter = 0;
-        let pendingBrowserEvent = null;
-        const MONITORING_URL = 'http://localhost:8003';
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             const token = urlParams.get('token');
+            console.log('URL token:', token ? 'present' : 'absent');
             if (token) {
                 localStorage.setItem('token', token);
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
             const storedToken = localStorage.getItem('token');
+            console.log('Stored token:', storedToken ? 'present' : 'absent');
             if (storedToken) parseToken(storedToken);
         };
 
         function parseToken(token) {
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
+                console.log('Token parsed, role:', payload.role);
                 currentUser = { user_id: payload.sub || payload.user_id, name: payload.name || 'Utilisateur', email: payload.email, role: payload.role || 'student' };
                 showMainApp();
-            } catch (e) { localStorage.removeItem('token'); }
+            } catch (e) {
+                console.error('Token parse error:', e);
+                localStorage.removeItem('token');
+            }
         }
 
         function showMainApp() {
             document.getElementById('loginRequired').classList.add('hidden');
             document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('navbar').classList.remove('hidden');
             document.getElementById('userName').textContent = currentUser.name;
             const roleEl = document.getElementById('userRole');
             roleEl.textContent = { student: 'Etudiant', teacher: 'Enseignant', proctor: 'Surveillant', admin: 'Admin' }[currentUser.role] || currentUser.role;
             roleEl.className = 'role-badge role-' + currentUser.role;
+            renderNavLinks();
             hideAllViews();
             if (currentUser.role === 'teacher') { document.getElementById('teacherView').classList.remove('hidden'); loadTeacherExams(); loadExamsForQuestionSelect(); }
             else if (currentUser.role === 'proctor') { document.getElementById('proctorView').classList.remove('hidden'); }
-            else if (currentUser.role === 'admin') { document.getElementById('adminView').classList.remove('hidden'); }
+            else if (currentUser.role === 'admin') { document.getElementById('adminView').classList.remove('hidden'); loadAdminData(); }
             else { document.getElementById('studentView').classList.remove('hidden'); loadExams(); loadStudentReservations(); }
+        }
+
+        function renderNavLinks() {
+            const nav = document.getElementById('navLinks');
+            const token = localStorage.getItem('token');
+            const links = [
+                { name: 'Examens', icon: '📝', url: 'http://localhost:8000', active: true, roles: ['student', 'teacher', 'admin'] },
+                { name: 'Monitoring', icon: '👁️', url: 'http://localhost:8003', active: false, roles: ['proctor', 'admin'] },
+                { name: 'Analytics', icon: '📊', url: 'http://localhost:8006', active: false, roles: ['admin'] }
+            ];
+            nav.innerHTML = links
+                .filter(l => l.roles.includes(currentUser.role))
+                .map(l => `<a href="${l.url}?token=${token}" class="nav-link ${l.active ? 'active' : ''}"><span class="nav-icon">${l.icon}</span> ${l.name}</a>`)
+                .join('');
+            loadNotificationCount();
+        }
+
+        async function loadNotificationCount() {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch('http://localhost:8005/notifications/user/' + currentUser.user_id);
+                if (res.ok) {
+                    const notifications = await res.json();
+                    const now = new Date();
+                    const recentCount = notifications.filter(n => {
+                        const created = new Date(n.created_at);
+                        return (now - created) / (1000 * 60 * 60) < 24;
+                    }).length;
+                    const badge = document.getElementById('notifBadge');
+                    if (recentCount > 0) {
+                        badge.textContent = recentCount > 99 ? '99+' : recentCount;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (e) { console.log('Could not load notifications'); }
+            document.getElementById('notifBellLink').href = 'http://localhost:8005?token=' + token;
         }
 
         function hideAllViews() {
@@ -402,9 +475,133 @@ async def home():
 
         function logout() { localStorage.removeItem('token'); window.location.href = 'http://localhost:8001'; }
 
+        function goToHub() { window.location.href = 'http://localhost:8001'; }
+
         function goToService(url) {
             const token = localStorage.getItem('token');
             window.location.href = url + '?token=' + token;
+        }
+
+        // ========== ADMIN FUNCTIONS ==========
+        function showAdminTab(tab) {
+            document.querySelectorAll('#adminView .tabs .tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('allExamsTab').classList.toggle('hidden', tab !== 'allExams');
+            document.getElementById('allReservationsTab').classList.toggle('hidden', tab !== 'allReservations');
+        }
+
+        async function loadAdminData() {
+            await Promise.all([loadAdminStats(), loadAllExams(), loadAllReservations()]);
+        }
+
+        async function loadAdminStats() {
+            try {
+                const [examsRes, reservationsRes] = await Promise.all([
+                    fetch('/exams/'),
+                    fetch('/reservations/all')
+                ]);
+                const exams = examsRes.ok ? await examsRes.json() : [];
+                const reservations = reservationsRes.ok ? await reservationsRes.json() : [];
+
+                let totalQuestions = 0;
+                for (const exam of exams) {
+                    try {
+                        const qRes = await fetch('/exams/' + exam.exam_id + '/questions');
+                        if (qRes.ok) {
+                            const questions = await qRes.json();
+                            totalQuestions += questions.length;
+                        }
+                    } catch (e) {}
+                }
+
+                document.getElementById('adminStatExams').textContent = exams.length;
+                document.getElementById('adminStatReservations').textContent = reservations.length;
+                document.getElementById('adminStatQuestions').textContent = totalQuestions;
+            } catch (e) { console.error('Admin stats error:', e); }
+        }
+
+        async function loadAllExams() {
+            const container = document.getElementById('adminExamsList');
+            container.innerHTML = '<p>Chargement...</p>';
+            try {
+                const res = await fetch('/exams/');
+                if (!res.ok) throw new Error('Erreur serveur');
+                const exams = await res.json();
+
+                if (exams.length === 0) {
+                    container.innerHTML = '<p style="color:#888;">Aucun examen</p>';
+                    return;
+                }
+
+                let html = '<table><thead><tr><th>Titre</th><th>Enseignant</th><th>Duree</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                for (const exam of exams) {
+                    html += '<tr>';
+                    html += '<td><strong>' + exam.title + '</strong></td>';
+                    html += '<td><code>' + (exam.teacher_id || '-').substring(0, 8) + '...</code></td>';
+                    html += '<td>' + exam.duration_minutes + ' min</td>';
+                    html += '<td><span class="status status-' + exam.status + '">' + exam.status + '</span></td>';
+                    html += '<td><button class="btn-small btn-danger" onclick="deleteExam(\\'' + exam.exam_id + '\\')">Supprimer</button></td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<p style="color:#e74c3c;">Erreur: ' + e.message + '</p>';
+            }
+        }
+
+        async function loadAllReservations() {
+            const container = document.getElementById('adminReservationsList');
+            container.innerHTML = '<p>Chargement...</p>';
+            try {
+                const res = await fetch('/reservations/all');
+                if (!res.ok) throw new Error('Erreur serveur');
+                const reservations = await res.json();
+
+                if (reservations.length === 0) {
+                    container.innerHTML = '<p style="color:#888;">Aucune reservation</p>';
+                    return;
+                }
+
+                let html = '<table><thead><tr><th>Etudiant</th><th>Examen</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                for (const r of reservations) {
+                    html += '<tr>';
+                    html += '<td><code>' + (r.user_id || '-').substring(0, 8) + '...</code></td>';
+                    html += '<td><code>' + (r.exam_id || '-').substring(0, 8) + '...</code></td>';
+                    html += '<td>' + formatDateTime(r.start_time) + '</td>';
+                    html += '<td><span class="status status-' + r.status + '">' + r.status + '</span></td>';
+                    html += '<td><button class="btn-small btn-danger" onclick="cancelReservation(\\'' + r.reservation_id + '\\')">Annuler</button></td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<p style="color:#e74c3c;">Erreur: ' + e.message + '</p>';
+            }
+        }
+
+        async function deleteExam(examId) {
+            if (!confirm('Supprimer cet examen ? Cette action est irreversible.')) return;
+            try {
+                const res = await fetch('/exams/' + examId, { method: 'DELETE' });
+                if (res.ok) {
+                    loadAdminData();
+                } else {
+                    alert('Erreur lors de la suppression');
+                }
+            } catch (e) { alert('Erreur: ' + e.message); }
+        }
+
+        async function cancelReservation(reservationId) {
+            if (!confirm('Annuler cette reservation ?')) return;
+            try {
+                const res = await fetch('/reservations/' + reservationId + '/status?status=cancelled', { method: 'PATCH' });
+                if (res.ok) {
+                    loadAllReservations();
+                } else {
+                    alert("Erreur lors de l'annulation");
+                }
+            } catch (e) { alert('Erreur: ' + e.message); }
         }
 
         function showMessage(id, text, isError = false) {
@@ -416,11 +613,6 @@ async def home():
         function formatDateTime(iso) {
             if (!iso) return '-';
             return new Date(iso).toLocaleString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-        }
-
-        function toLocalISO(date) {
-            const p = n => String(n).padStart(2, '0');
-            return date.getFullYear() + '-' + p(date.getMonth()+1) + '-' + p(date.getDate()) + 'T' + p(date.getHours()) + ':' + p(date.getMinutes()) + ':' + p(date.getSeconds());
         }
 
         // ========== STUDENT ==========
@@ -483,7 +675,7 @@ async def home():
             const examId = examSelect.value;
             const slotSelect = document.getElementById('slotSelect');
             slotSelect.innerHTML = '<option value="">-- Selectionnez un creneau --</option>';
-            if (!examId) { slotSelect.innerHTML = '<option value="">-- Choisissez d\\'abord un examen --</option>'; return; }
+            if (!examId) { slotSelect.innerHTML = '<option value="">-- Choisissez d abord un examen --</option>'; return; }
             const res = await fetch('/exams/' + examId + '/slots');
             const slots = await res.json();
             if (slots.length === 0) {
@@ -510,7 +702,7 @@ async def home():
             const endDate = new Date(startDate.getTime() + duration * 60000);
             const res = await fetch('/reservations/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: toLocalISO(startDate), end_time: toLocalISO(endDate) })
+                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: startDate.toISOString(), end_time: endDate.toISOString() })
             });
             if (res.ok) { showMessage('reservationMessage', 'Reservation creee!'); document.getElementById('reservationForm').reset(); loadStudentReservations(); }
             else { const data = await res.json(); showMessage('reservationMessage', data.detail || 'Erreur', true); }
@@ -528,32 +720,7 @@ async def home():
             const exam = await examRes.json();
             const questionsRes = await fetch('/exams/' + examId + '/questions');
             const questions = await questionsRes.json();
-            if (questions.length === 0) { alert('Cet examen n\\'a pas encore de questions.'); return; }
-
-            // Request webcam access (mandatory for proctoring)
-            try {
-                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } catch (err) {
-                alert('Webcam requise pour passer l\\'examen. Veuillez autoriser l\\'acces a la camera.');
-                return;
-            }
-
-            // Setup webcam video feed
-            const video = document.getElementById('webcamVideo');
-            video.srcObject = webcamStream;
-            document.getElementById('webcamContainer').classList.remove('hidden');
-
-            // Detect webcam disabled (track ended)
-            webcamStream.getVideoTracks().forEach(track => {
-                track.onended = () => {
-                    pendingBrowserEvent = 'webcam_disabled';
-                    sendFrame();
-                };
-            });
-
-            // Detect tab changes
-            document.addEventListener('visibilitychange', onTabChange);
-
+            if (questions.length === 0) { alert("Cet examen n'a pas encore de questions."); return; }
             examData = { questions, answers: {}, currentIndex: 0, examId, reservationId, duration: exam.duration_minutes, startTime: Date.now(), title: exam.title };
             hideAllViews();
             document.getElementById('examView').classList.remove('hidden');
@@ -562,65 +729,6 @@ async def home():
             buildQuestionNav();
             renderQuestion();
             startTimer();
-
-            // Start monitoring session
-            try {
-                const sessionRes = await fetch(MONITORING_URL + '/monitoring/sessions', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ reservation_id: reservationId, user_id: currentUser.user_id, exam_id: examId })
-                });
-                if (sessionRes.ok) {
-                    const session = await sessionRes.json();
-                    monitoringSessionId = session.session_id;
-                    console.log('Monitoring session started:', monitoringSessionId);
-                } else {
-                    console.warn('Could not start monitoring session');
-                }
-            } catch (e) { console.warn('Monitoring service unavailable:', e); }
-
-            // Start frame capture every 3 seconds
-            frameCounter = 0;
-            frameCaptureInterval = setInterval(() => sendFrame(), 3000);
-        }
-
-        function onTabChange() {
-            if (document.hidden && monitoringSessionId) {
-                pendingBrowserEvent = 'tab_change';
-                sendFrame();
-            }
-        }
-
-        function captureFrameBase64() {
-            const video = document.getElementById('webcamVideo');
-            const canvas = document.getElementById('webcamCanvas');
-            if (!video || !video.videoWidth) {
-                // Webcam not ready or disabled — send 1x1 white pixel
-                canvas.width = 1; canvas.height = 1;
-                const ctx = canvas.getContext('2d');
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, 1, 1);
-            } else {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-            }
-            return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-        }
-
-        async function sendFrame() {
-            if (!monitoringSessionId) return;
-            try {
-                frameCounter++;
-                const body = { frame_data: captureFrameBase64(), frame_number: frameCounter };
-                if (pendingBrowserEvent) {
-                    body.browser_event = pendingBrowserEvent;
-                    pendingBrowserEvent = null;
-                }
-                await fetch(MONITORING_URL + '/monitoring/sessions/' + monitoringSessionId + '/frame', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-            } catch (e) { console.warn('Frame send error:', e); }
         }
 
         function buildQuestionNav() {
@@ -695,25 +803,9 @@ async def home():
         }
 
         async function submitExam(autoSubmit = false) {
-            if (!autoSubmit && !confirm('Terminer et soumettre l\\'examen?')) return;
+            if (!autoSubmit && !confirm("Terminer et soumettre l'examen?")) return;
             // Stop timer
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
-            // Stop frame capture
-            if (frameCaptureInterval) { clearInterval(frameCaptureInterval); frameCaptureInterval = null; }
-            // Stop monitoring session
-            if (monitoringSessionId) {
-                try {
-                    await fetch(MONITORING_URL + '/monitoring/sessions/' + monitoringSessionId + '/stop', { method: 'PUT' });
-                } catch (e) { console.warn('Could not stop monitoring session:', e); }
-                monitoringSessionId = null;
-            }
-            // Stop webcam
-            if (webcamStream) {
-                webcamStream.getTracks().forEach(t => t.stop());
-                webcamStream = null;
-            }
-            document.getElementById('webcamContainer').classList.add('hidden');
-            document.removeEventListener('visibilitychange', onTabChange);
             // Fetch correct answers for grading
             const correctRes = await fetch('/exams/' + examData.examId + '/questions/with-answers');
             const questionsWithAnswers = await correctRes.json();
@@ -796,7 +888,7 @@ async def home():
                 for (const st of slotTimes) {
                     await fetch('/exams/' + exam.exam_id + '/slots', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ start_time: st })
+                        body: JSON.stringify({ start_time: new Date(st).toISOString() })
                     });
                 }
                 const slotMsg = slotTimes.length > 0 ? ' avec ' + slotTimes.length + ' creneau(x)' : '';
@@ -872,7 +964,7 @@ async def home():
             if (!timeInput.value) { alert('Veuillez choisir une date et heure'); return; }
             await fetch('/exams/' + slotManagerExamId + '/slots', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_time: timeInput.value })
+                body: JSON.stringify({ start_time: new Date(timeInput.value).toISOString() })
             });
             timeInput.value = '';
             loadExistingSlots();

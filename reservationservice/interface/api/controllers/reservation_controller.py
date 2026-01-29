@@ -51,6 +51,20 @@ async def cancel_reservation(reservation_id: str):
         created_at=reservation.created_at
     )
 
+@router.get("/all", response_model=List[ReservationResponse])
+def list_all_reservations():
+    """List all reservations (admin only)"""
+    reservations = repo.get_all()
+    return [ReservationResponse(
+        reservation_id=r.reservation_id,
+        user_id=r.user_id,
+        exam_id=r.exam_id,
+        start_time=r.start_time,
+        end_time=r.end_time,
+        status=r.status,
+        created_at=r.created_at
+    ) for r in reservations]
+
 @router.get("/user/{user_id}", response_model=List[ReservationResponse])
 def list_reservations(user_id: str):
     use_case = ListReservationsByUser(repo)
