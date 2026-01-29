@@ -38,6 +38,16 @@ jobs:
             PUBLIC_IP=$(curl -s ifconfig.me || echo "${{ secrets.VPS_HOST }}")
             sed -i "s/PUBLIC_HOST=.*/PUBLIC_HOST=$PUBLIC_IP/" .env
 
+            # Generate self-signed SSL certificate if missing
+            SSL_DIR="${{ env.PROJECT_PATH }}/docker/ssl"
+            mkdir -p "$SSL_DIR"
+            if [ ! -f "$SSL_DIR/cert.pem" ]; then
+              openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout "$SSL_DIR/key.pem" -out "$SSL_DIR/cert.pem" \
+                -subj "/CN=proctorwise" -addext "subjectAltName=IP:$PUBLIC_IP"
+              echo "SSL certificate generated for IP: $PUBLIC_IP"
+            fi
+
             # Build and restart services
             docker compose pull
             docker compose up -d --build

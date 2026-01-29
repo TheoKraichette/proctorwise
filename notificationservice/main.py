@@ -16,6 +16,24 @@ from infrastructure.database.models import Base
 
 _PUBLIC_HOST = os.getenv("PUBLIC_HOST", "localhost")
 
+
+def _rewrite_urls(html: str) -> str:
+    if _PUBLIC_HOST == "localhost":
+        return html
+    base = f"https://{_PUBLIC_HOST}"
+    # Step 1: API URLs (with path after port) - remove port, keep path
+    for port in ["8000", "8001", "8003", "8004", "8005", "8006"]:
+        html = html.replace(f"http://localhost:{port}/", f"{base}/")
+    # Step 2: Page URLs (no path after port) - map to nginx paths
+    html = html.replace("http://localhost:8001", base)
+    html = html.replace("http://localhost:8000", f"{base}/app")
+    html = html.replace("http://localhost:8003", f"{base}/proctor")
+    html = html.replace("http://localhost:8005", f"{base}/notifs")
+    html = html.replace("http://localhost:8006", f"{base}/admin")
+    html = html.replace("http://localhost:8004", base)
+    return html
+
+
 consumer_task = None
 
 
@@ -696,4 +714,4 @@ async def home():
 </body>
 </html>
 """
-    return html.replace("//localhost:", "//" + _PUBLIC_HOST + ":")
+    return _rewrite_urls(html)

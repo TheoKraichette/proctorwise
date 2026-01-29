@@ -27,7 +27,13 @@
       "Bash(python -m json.tool:*)",
       "Bash(docker ps:*)",
       "Bash(py -c \"import py_compile; py_compile.compile\\(''userservice/main.py'', doraise=True\\); print\\(''userservice OK''\\)\")",
-      "Bash(py -c:*)"
+      "Bash(py -c:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd Nginx reverse proxy and VPS setup script for production deployment\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(test:*)",
+      "Bash(do grep -c \"_PUBLIC_HOST\" $s/main.py)",
+      "Bash(git commit:*)"
     ]
   }
 }

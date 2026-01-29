@@ -94,6 +94,9 @@ Thumbs.db
 # Alembic
 alembic/versions/*.pyc
 
+# SSL certificates (generated per environment)
+docker/ssl/*.pem
+
 # Temporary files
 *.tmp
 *.temp

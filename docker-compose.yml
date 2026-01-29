@@ -200,7 +200,7 @@ services:
       JWT_ALGORITHM: HS256
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -223,7 +223,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -248,7 +248,7 @@ services:
       USE_LOCAL_STORAGE: "true"
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "8003:8003"
+      - "127.0.0.1:8003:8003"
     volumes:
       - monitoring_frames:/app/local_storage
     healthcheck:
@@ -272,7 +272,7 @@ services:
       DATABASE_URL: mysql+pymysql://proctorwise:proctorwise_secret@mariadb:3306/proctorwise_corrections
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     ports:
-      - "8004:8000"
+      - "127.0.0.1:8004:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -303,7 +303,7 @@ services:
       RESERVATION_SERVICE_URL: http://reservationservice:8000
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "8005:8000"
+      - "127.0.0.1:8005:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -323,7 +323,7 @@ services:
       DATABASE_URL: mysql+pymysql://proctorwise:proctorwise_secret@mariadb:3306/proctorwise_analytics
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
     ports:
-      - "8006:8000"
+      - "127.0.0.1:8006:8000"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -340,11 +340,24 @@ services:
     image: nginx:alpine
     container_name: proctorwise-nginx
     depends_on:
-      - userservice
+      userservice:
+        condition: service_healthy
+      reservationservice:
+        condition: service_healthy
+      monitoringservice:
+        condition: service_healthy
+      correctionservice:
+        condition: service_healthy
+      notificationservice:
+        condition: service_healthy
+      analyticsservice:
+        condition: service_healthy
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
     restart: unless-stopped
     networks:
       - proctorwise
