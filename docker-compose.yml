@@ -170,7 +170,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: >
       bash -c "
-        airflow db init &&
+        airflow db migrate &&
         airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@proctorwise.com || true &&
         airflow webserver & airflow scheduler
       "

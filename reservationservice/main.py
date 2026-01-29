@@ -103,6 +103,11 @@ async def home():
         .question-nav button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid #e0e0e0; background: white; cursor: pointer; font-weight: bold; }
         .question-nav button.answered { background: #d4edda; border-color: #28a745; }
         .question-nav button.current { background: #667eea; color: white; border-color: #667eea; }
+        /* Webcam proctoring styles */
+        #webcamContainer { position: fixed; top: 20px; right: 20px; z-index: 1000; background: #000; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.4); border: 3px solid #667eea; }
+        #webcamVideo { width: 180px; height: 135px; object-fit: cover; display: block; }
+        #webcamLabel { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(102,126,234,0.85); color: white; text-align: center; font-size: 11px; padding: 3px 0; font-weight: 600; }
+        #webcamCanvas { display: none; }
     </style>
 </head>
 <body>
@@ -155,6 +160,13 @@ async def home():
                     <div id="studentReservations"></div>
                 </div>
             </div>
+
+            <!-- Webcam proctoring overlay (shown during exam) -->
+            <div id="webcamContainer" class="hidden" style="position:relative;">
+                <video id="webcamVideo" autoplay muted playsinline></video>
+                <span id="webcamLabel">Surveillance active</span>
+            </div>
+            <canvas id="webcamCanvas"></canvas>
 
             <!-- Exam Taking View -->
             <div id="examView" class="hidden exam-container">
@@ -343,6 +355,13 @@ async def home():
         let currentUser = null;
         let examData = { questions: [], answers: {}, currentIndex: 0, examId: null, reservationId: null, duration: 0, startTime: null };
         let timerInterval = null;
+        // Webcam proctoring state
+        let webcamStream = null;
+        let monitoringSessionId = null;
+        let frameCaptureInterval = null;
+        let frameCounter = 0;
+        let pendingBrowserEvent = null;
+        const MONITORING_URL = 'http://localhost:8003';
 
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -397,6 +416,11 @@ async def home():
         function formatDateTime(iso) {
             if (!iso) return '-';
             return new Date(iso).toLocaleString('fr-FR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toLocalISO(date) {
+            const p = n => String(n).padStart(2, '0');
+            return date.getFullYear() + '-' + p(date.getMonth()+1) + '-' + p(date.getDate()) + 'T' + p(date.getHours()) + ':' + p(date.getMinutes()) + ':' + p(date.getSeconds());
         }
 
         // ========== STUDENT ==========
@@ -486,7 +510,7 @@ async def home():
             const endDate = new Date(startDate.getTime() + duration * 60000);
             const res = await fetch('/reservations/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: startDate.toISOString(), end_time: endDate.toISOString() })
+                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: toLocalISO(startDate), end_time: toLocalISO(endDate) })
             });
             if (res.ok) { showMessage('reservationMessage', 'Reservation creee!'); document.getElementById('reservationForm').reset(); loadStudentReservations(); }
             else { const data = await res.json(); showMessage('reservationMessage', data.detail || 'Erreur', true); }
@@ -505,6 +529,31 @@ async def home():
             const questionsRes = await fetch('/exams/' + examId + '/questions');
             const questions = await questionsRes.json();
             if (questions.length === 0) { alert('Cet examen n\\'a pas encore de questions.'); return; }
+
+            // Request webcam access (mandatory for proctoring)
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (err) {
+                alert('Webcam requise pour passer l\\'examen. Veuillez autoriser l\\'acces a la camera.');
+                return;
+            }
+
+            // Setup webcam video feed
+            const video = document.getElementById('webcamVideo');
+            video.srcObject = webcamStream;
+            document.getElementById('webcamContainer').classList.remove('hidden');
+
+            // Detect webcam disabled (track ended)
+            webcamStream.getVideoTracks().forEach(track => {
+                track.onended = () => {
+                    pendingBrowserEvent = 'webcam_disabled';
+                    sendFrame();
+                };
+            });
+
+            // Detect tab changes
+            document.addEventListener('visibilitychange', onTabChange);
+
             examData = { questions, answers: {}, currentIndex: 0, examId, reservationId, duration: exam.duration_minutes, startTime: Date.now(), title: exam.title };
             hideAllViews();
             document.getElementById('examView').classList.remove('hidden');
@@ -513,6 +562,65 @@ async def home():
             buildQuestionNav();
             renderQuestion();
             startTimer();
+
+            // Start monitoring session
+            try {
+                const sessionRes = await fetch(MONITORING_URL + '/monitoring/sessions', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reservation_id: reservationId, user_id: currentUser.user_id, exam_id: examId })
+                });
+                if (sessionRes.ok) {
+                    const session = await sessionRes.json();
+                    monitoringSessionId = session.session_id;
+                    console.log('Monitoring session started:', monitoringSessionId);
+                } else {
+                    console.warn('Could not start monitoring session');
+                }
+            } catch (e) { console.warn('Monitoring service unavailable:', e); }
+
+            // Start frame capture every 3 seconds
+            frameCounter = 0;
+            frameCaptureInterval = setInterval(() => sendFrame(), 3000);
+        }
+
+        function onTabChange() {
+            if (document.hidden && monitoringSessionId) {
+                pendingBrowserEvent = 'tab_change';
+                sendFrame();
+            }
+        }
+
+        function captureFrameBase64() {
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('webcamCanvas');
+            if (!video || !video.videoWidth) {
+                // Webcam not ready or disabled — send 1x1 white pixel
+                canvas.width = 1; canvas.height = 1;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 1, 1);
+            } else {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvas.getContext('2d').drawImage(video, 0, 0);
+            }
+            return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+        }
+
+        async function sendFrame() {
+            if (!monitoringSessionId) return;
+            try {
+                frameCounter++;
+                const body = { frame_data: captureFrameBase64(), frame_number: frameCounter };
+                if (pendingBrowserEvent) {
+                    body.browser_event = pendingBrowserEvent;
+                    pendingBrowserEvent = null;
+                }
+                await fetch(MONITORING_URL + '/monitoring/sessions/' + monitoringSessionId + '/frame', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) { console.warn('Frame send error:', e); }
         }
 
         function buildQuestionNav() {
@@ -590,6 +698,22 @@ async def home():
             if (!autoSubmit && !confirm('Terminer et soumettre l\\'examen?')) return;
             // Stop timer
             if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+            // Stop frame capture
+            if (frameCaptureInterval) { clearInterval(frameCaptureInterval); frameCaptureInterval = null; }
+            // Stop monitoring session
+            if (monitoringSessionId) {
+                try {
+                    await fetch(MONITORING_URL + '/monitoring/sessions/' + monitoringSessionId + '/stop', { method: 'PUT' });
+                } catch (e) { console.warn('Could not stop monitoring session:', e); }
+                monitoringSessionId = null;
+            }
+            // Stop webcam
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(t => t.stop());
+                webcamStream = null;
+            }
+            document.getElementById('webcamContainer').classList.add('hidden');
+            document.removeEventListener('visibilitychange', onTabChange);
             // Fetch correct answers for grading
             const correctRes = await fetch('/exams/' + examData.examId + '/questions/with-answers');
             const questionsWithAnswers = await correctRes.json();
@@ -672,7 +796,7 @@ async def home():
                 for (const st of slotTimes) {
                     await fetch('/exams/' + exam.exam_id + '/slots', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ start_time: new Date(st).toISOString() })
+                        body: JSON.stringify({ start_time: st })
                     });
                 }
                 const slotMsg = slotTimes.length > 0 ? ' avec ' + slotTimes.length + ' creneau(x)' : '';
@@ -748,7 +872,7 @@ async def home():
             if (!timeInput.value) { alert('Veuillez choisir une date et heure'); return; }
             await fetch('/exams/' + slotManagerExamId + '/slots', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_time: new Date(timeInput.value).toISOString() })
+                body: JSON.stringify({ start_time: timeInput.value })
             });
             timeInput.value = '';
             loadExistingSlots();

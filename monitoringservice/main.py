@@ -186,6 +186,27 @@ async def home():
         /* Auto-refresh indicator */
         .auto-refresh { font-size: 11px; color: #999; display: flex; align-items: center; gap: 5px; }
         .auto-refresh .dot { width: 6px; height: 6px; background: #28a745; border-radius: 50%; animation: pulse 2s infinite; }
+
+        /* Live video viewer */
+        .live-video-container { background: #1a1a2e; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        .live-video-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #16213e; }
+        .live-video-header .live-title { color: #e0e0e0; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .live-video-body { position: relative; min-height: 300px; display: flex; align-items: center; justify-content: center; background: #0f0f23; }
+        .live-video-body img { width: 100%; display: block; }
+        .live-video-placeholder { color: #666; font-size: 14px; text-align: center; padding: 40px; }
+        .live-video-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 8px 14px; background: rgba(0,0,0,0.6); color: #ccc; font-size: 12px; display: flex; justify-content: space-between; }
+        .live-anomaly-banner { position: absolute; top: 10px; left: 10px; right: 10px; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; color: white; animation: fadeIn 0.3s ease; z-index: 10; }
+        .live-anomaly-banner.critical { background: rgba(231, 76, 60, 0.9); }
+        .live-anomaly-banner.high { background: rgba(230, 126, 34, 0.9); }
+        .live-anomaly-banner.medium { background: rgba(241, 196, 15, 0.85); color: #333; }
+        .live-anomaly-banner.low { background: rgba(52, 152, 219, 0.9); }
+        .btn-live-start { padding: 6px 14px; font-size: 12px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .btn-live-start:hover { background: #218838; }
+        .btn-live-stop { padding: 6px 14px; font-size: 12px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .btn-live-stop:hover { background: #5a6268; }
+        .live-status-indicator { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .live-status-indicator.connected { background: #28a745; animation: pulse 1.5s infinite; }
+        .live-status-indicator.disconnected { background: #6c757d; }
     </style>
 </head>
 <body>
@@ -293,6 +314,9 @@ async def home():
         let autoRefreshIntervalId = null;
         let allSessionsCache = [];
         let currentDetailSessionId = null;
+        let liveWebSocket = null;
+        let livePingIntervalId = null;
+        let liveViewActive = false;
 
         // ========== INIT ==========
         window.onload = function() {
@@ -616,6 +640,22 @@ async def home():
                     html += '<div style="margin-bottom:20px;"><button class="btn-small btn-stop" onclick="stopSession(&apos;' + session.session_id + '&apos;);closeDetail();">Arreter cette session</button></div>';
                 }
 
+                // Live video viewer for active sessions
+                if (session.status === 'active') {
+                    html += '<div class="live-video-container">';
+                    html += '<div class="live-video-header">';
+                    html += '<div class="live-title"><span class="live-status-indicator disconnected" id="liveStatusDot"></span> Flux video en direct</div>';
+                    html += '<button class="btn-live-start" id="liveToggleBtn" onclick="toggleLiveView(&apos;' + session.session_id + '&apos;)">Voir en direct</button>';
+                    html += '</div>';
+                    html += '<div class="live-video-body" id="liveVideoBody">';
+                    html += '<div class="live-video-placeholder" id="liveVideoPlaceholder">Cliquez sur "Voir en direct" pour afficher le flux webcam de l&apos;etudiant</div>';
+                    html += '<img id="liveVideoFrame" style="display:none;" alt="Live frame">';
+                    html += '<div class="live-anomaly-banner" id="liveAnomalyBanner" style="display:none;"></div>';
+                    html += '<div class="live-video-overlay" id="liveVideoOverlay" style="display:none;"><span id="liveFrameInfo"></span><span id="liveTimestamp"></span></div>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+
                 // Anomaly summary
                 if (summary) {
                     html += '<h3 style="margin-bottom:10px;font-size:16px;">Resume des anomalies</h3>';
@@ -710,6 +750,7 @@ async def home():
             document.getElementById('detailModal').classList.add('hidden');
             currentDetailSessionId = null;
             disconnectWebSocket();
+            stopLiveView();
         }
 
         // ========== WEBSOCKET ==========
@@ -828,6 +869,136 @@ async def home():
                 activeWebSocket.close();
                 activeWebSocket = null;
             }
+        }
+
+        // ========== LIVE VIDEO VIEW ==========
+        function toggleLiveView(sessionId) {
+            if (liveViewActive) {
+                stopLiveView();
+            } else {
+                startLiveView(sessionId);
+            }
+        }
+
+        function startLiveView(sessionId) {
+            stopLiveView();
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = wsProtocol + '//' + window.location.host + '/monitoring/sessions/' + sessionId + '/live';
+
+            try {
+                liveWebSocket = new WebSocket(wsUrl);
+
+                liveWebSocket.onopen = function() {
+                    liveViewActive = true;
+                    const btn = document.getElementById('liveToggleBtn');
+                    if (btn) { btn.textContent = 'Arreter le direct'; btn.className = 'btn-live-stop'; }
+                    const dot = document.getElementById('liveStatusDot');
+                    if (dot) { dot.className = 'live-status-indicator connected'; }
+                    const placeholder = document.getElementById('liveVideoPlaceholder');
+                    if (placeholder) { placeholder.textContent = 'En attente de la prochaine image...'; }
+
+                    livePingIntervalId = setInterval(function() {
+                        if (liveWebSocket && liveWebSocket.readyState === WebSocket.OPEN) {
+                            liveWebSocket.send(JSON.stringify({ type: 'ping' }));
+                        }
+                    }, 30000);
+                };
+
+                liveWebSocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'pong') return;
+
+                        if (data.type === 'frame') {
+                            const img = document.getElementById('liveVideoFrame');
+                            const placeholder = document.getElementById('liveVideoPlaceholder');
+                            const overlay = document.getElementById('liveVideoOverlay');
+                            if (img) {
+                                img.src = 'data:image/jpeg;base64,' + data.frame_data;
+                                img.style.display = 'block';
+                            }
+                            if (placeholder) placeholder.style.display = 'none';
+                            if (overlay) {
+                                overlay.style.display = 'flex';
+                                const frameInfo = document.getElementById('liveFrameInfo');
+                                const timestamp = document.getElementById('liveTimestamp');
+                                if (frameInfo) frameInfo.textContent = 'Frame #' + data.frame_number;
+                                if (timestamp) timestamp.textContent = new Date(data.timestamp).toLocaleTimeString('fr-FR');
+                            }
+
+                            if (data.anomalies && data.anomalies.length > 0) {
+                                showLiveAnomalies(data.anomalies);
+                            }
+                        } else if (data.type === 'session_stopped') {
+                            stopLiveView();
+                            const placeholder = document.getElementById('liveVideoPlaceholder');
+                            if (placeholder) {
+                                placeholder.style.display = 'block';
+                                placeholder.textContent = 'Session de monitoring arretee';
+                            }
+                            const btn = document.getElementById('liveToggleBtn');
+                            if (btn) { btn.disabled = true; btn.textContent = 'Session terminee'; }
+                        }
+                    } catch (e) {
+                        console.error('Live WS message parse error:', e);
+                    }
+                };
+
+                liveWebSocket.onclose = function() {
+                    liveViewActive = false;
+                    const btn = document.getElementById('liveToggleBtn');
+                    if (btn && !btn.disabled) { btn.textContent = 'Voir en direct'; btn.className = 'btn-live-start'; }
+                    const dot = document.getElementById('liveStatusDot');
+                    if (dot) { dot.className = 'live-status-indicator disconnected'; }
+                };
+
+                liveWebSocket.onerror = function() {
+                    console.error('Live WebSocket error');
+                };
+
+            } catch (e) {
+                console.error('Live WebSocket connection error:', e);
+            }
+        }
+
+        function stopLiveView() {
+            if (livePingIntervalId) {
+                clearInterval(livePingIntervalId);
+                livePingIntervalId = null;
+            }
+            if (liveWebSocket) {
+                liveWebSocket.close();
+                liveWebSocket = null;
+            }
+            liveViewActive = false;
+            const img = document.getElementById('liveVideoFrame');
+            if (img) { img.style.display = 'none'; img.src = ''; }
+            const overlay = document.getElementById('liveVideoOverlay');
+            if (overlay) overlay.style.display = 'none';
+            const banner = document.getElementById('liveAnomalyBanner');
+            if (banner) banner.style.display = 'none';
+            const placeholder = document.getElementById('liveVideoPlaceholder');
+            if (placeholder) { placeholder.style.display = 'block'; placeholder.textContent = 'Cliquez sur "Voir en direct" pour afficher le flux webcam de l\\'etudiant'; }
+            const btn = document.getElementById('liveToggleBtn');
+            if (btn && !btn.disabled) { btn.textContent = 'Voir en direct'; btn.className = 'btn-live-start'; }
+            const dot = document.getElementById('liveStatusDot');
+            if (dot) { dot.className = 'live-status-indicator disconnected'; }
+        }
+
+        function showLiveAnomalies(anomalies) {
+            const banner = document.getElementById('liveAnomalyBanner');
+            if (!banner) return;
+            // Show highest severity anomaly
+            const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+            anomalies.sort(function(a, b) { return (severityOrder[a.severity] || 4) - (severityOrder[b.severity] || 4); });
+            const top = anomalies[0];
+            banner.className = 'live-anomaly-banner ' + top.severity;
+            let text = (top.anomaly_type || '').replace(/_/g, ' ').toUpperCase();
+            if (top.description) text += ' — ' + top.description;
+            if (anomalies.length > 1) text += ' (+' + (anomalies.length - 1) + ' autre' + (anomalies.length > 2 ? 's' : '') + ')';
+            banner.textContent = text;
+            banner.style.display = 'block';
+            setTimeout(function() { if (banner) banner.style.display = 'none'; }, 5000);
         }
     </script>
 </body>

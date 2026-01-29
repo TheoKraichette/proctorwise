@@ -1,5 +1,6 @@
 import base64
 import os
+from datetime import datetime
 from typing import List, Optional
 
 import numpy as np
@@ -35,6 +36,7 @@ frame_storage = LocalFrameStorage(base_path=os.getenv("FRAME_STORAGE_PATH", "./l
 process_frame_use_case = ProcessFrame(repo, ml_detector, frame_storage, kafka_publisher)
 
 active_websockets: dict = {}
+live_view_websockets: dict = {}  # session_id -> [WebSocket]
 
 
 @router.get("/sessions", response_model=List[MonitoringSessionResponse])
@@ -115,6 +117,34 @@ async def process_frame(session_id: str, request: ProcessFrameRequest):
                     ]
                 })
 
+        # Forward frame to live view WebSockets
+        if session_id in live_view_websockets:
+            live_payload = {
+                "type": "frame",
+                "frame_data": request.frame_data,
+                "frame_number": request.frame_number,
+                "timestamp": datetime.utcnow().isoformat(),
+                "anomalies": [
+                    {
+                        "anomaly_id": a.anomaly_id,
+                        "anomaly_type": a.anomaly_type,
+                        "severity": a.severity,
+                        "description": a.description
+                    }
+                    for a in anomalies
+                ]
+            }
+            dead_connections = []
+            for ws in live_view_websockets[session_id]:
+                try:
+                    await ws.send_json(live_payload)
+                except Exception:
+                    dead_connections.append(ws)
+            for ws in dead_connections:
+                live_view_websockets[session_id].remove(ws)
+            if not live_view_websockets[session_id]:
+                del live_view_websockets[session_id]
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -146,6 +176,16 @@ async def stop_monitoring(session_id: str):
         session = await use_case.execute(session_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+    # Notify live view WebSockets that session is stopped
+    if session_id in live_view_websockets:
+        for ws in live_view_websockets[session_id]:
+            try:
+                await ws.send_json({"type": "session_stopped"})
+                await ws.close()
+            except Exception:
+                pass
+        del live_view_websockets[session_id]
 
     return MonitoringSessionResponse(
         session_id=session.session_id,
@@ -274,3 +314,31 @@ async def websocket_stream(websocket: WebSocket, session_id: str):
             active_websockets[session_id].remove(websocket)
             if not active_websockets[session_id]:
                 del active_websockets[session_id]
+
+
+@router.websocket("/sessions/{session_id}/live")
+async def websocket_live_view(websocket: WebSocket, session_id: str):
+    await websocket.accept()
+
+    session = repo.get_session_by_id(session_id)
+    if not session or session.status != "active":
+        await websocket.close(code=4004, reason="Session not found or not active")
+        return
+
+    if session_id not in live_view_websockets:
+        live_view_websockets[session_id] = []
+    live_view_websockets[session_id].append(websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if session_id in live_view_websockets:
+            if websocket in live_view_websockets[session_id]:
+                live_view_websockets[session_id].remove(websocket)
+            if not live_view_websockets[session_id]:
+                del live_view_websockets[session_id]
