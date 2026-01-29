@@ -85,13 +85,28 @@ async def home():
     <title>ProctorWise - Notifications</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: rgba(255,255,255,0.95); border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
-        .header h1 { color: #333; font-size: 24px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding-top: 80px; }
+
+        /* Navbar */
+        .navbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255,255,255,0.98); box-shadow: 0 2px 20px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; z-index: 1000; }
+        .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; font-weight: bold; font-size: 18px; }
+        .navbar-brand:hover { color: #667eea; }
+        .navbar-brand .logo { font-size: 24px; }
+        .navbar-nav { display: flex; align-items: center; gap: 8px; }
+        .nav-link { padding: 8px 16px; border-radius: 8px; text-decoration: none; color: #555; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .nav-link:hover { background: #f0f0f0; color: #333; }
+        .nav-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .nav-link .nav-icon { font-size: 16px; }
+        .navbar-user { display: flex; align-items: center; gap: 12px; }
+        .btn-home { padding: 8px 12px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; transition: background 0.2s; text-decoration: none; }
+        .btn-home:hover { background: #e0e0e0; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .header { display: none; }
         .user-info { display: flex; align-items: center; gap: 15px; }
-        .btn-logout { padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
-        .btn-logout:hover { background: #c82333; }
+        .user-name { font-weight: 500; color: #333; font-size: 14px; }
+        .btn-logout { padding: 8px 16px; background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; transition: background 0.2s; }
+        .btn-logout:hover { background: #d63050; }
         .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-bottom: 20px; }
         .card h2 { color: #333; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
         .hidden { display: none; }
@@ -190,6 +205,24 @@ async def home():
     </style>
 </head>
 <body>
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar" style="display: none;">
+        <a href="http://localhost:8001" class="navbar-brand" onclick="goToHub(); return false;">
+            <span class="logo">🎓</span>
+            ProctorWise
+        </a>
+        <div class="navbar-nav" id="navLinks"></div>
+        <div class="navbar-user">
+            <div class="ws-status">
+                <span class="ws-dot disconnected" id="wsDot"></span>
+                <span id="wsStatusText">Deconnecte</span>
+            </div>
+            <span id="navUserName" class="user-name"></span>
+            <span id="navUserRole" class="role-badge"></span>
+            <button class="btn-logout" onclick="logout()">Deconnexion</button>
+        </div>
+    </nav>
+
     <div class="container">
         <div id="loginRequired" class="card login-prompt">
             <h2>Connexion requise</h2>
@@ -198,18 +231,6 @@ async def home():
         </div>
 
         <div id="mainApp" class="hidden">
-            <div class="header">
-                <h1>Notifications</h1>
-                <div class="user-info">
-                    <div class="ws-status">
-                        <span class="ws-dot disconnected" id="wsDot"></span>
-                        <span id="wsStatusText">Deconnecte</span>
-                    </div>
-                    <span id="userName"></span>
-                    <span id="userRole" class="role-badge"></span>
-                    <button class="btn-logout" onclick="logout()">Deconnexion</button>
-                </div>
-            </div>
 
             <div class="tabs">
                 <button class="tab active" onclick="showTab('history')">Historique</button>
@@ -354,15 +375,39 @@ async def home():
         function showMainApp() {
             document.getElementById('loginRequired').classList.add('hidden');
             document.getElementById('mainApp').classList.remove('hidden');
-            document.getElementById('userName').textContent = currentUser.name;
-            const roleEl = document.getElementById('userRole');
+            document.getElementById('navbar').style.display = 'flex';
+
+            // Update navbar user info
+            document.getElementById('navUserName').textContent = currentUser.name;
+            const roleEl = document.getElementById('navUserRole');
             const roleNames = { student: 'Etudiant', teacher: 'Enseignant', proctor: 'Surveillant', admin: 'Admin' };
             roleEl.textContent = roleNames[currentUser.role] || currentUser.role;
             roleEl.className = 'role-badge role-' + currentUser.role;
 
+            renderNavLinks();
             loadNotifications();
             loadPreferences();
             connectWebSocket();
+        }
+
+        function renderNavLinks() {
+            const nav = document.getElementById('navLinks');
+            const token = localStorage.getItem('token');
+            const links = [
+                { name: 'Examens', icon: '📝', url: 'http://localhost:8000', active: false, roles: ['student', 'teacher', 'admin'] },
+                { name: 'Monitoring', icon: '👁️', url: 'http://localhost:8003', active: false, roles: ['proctor', 'admin'] },
+                { name: 'Analytics', icon: '📊', url: 'http://localhost:8006', active: false, roles: ['admin'] }
+            ];
+            // Add a "Notifications" indicator since we're on this page
+            nav.innerHTML = '<span class="nav-link active"><span class="nav-icon">🔔</span> Notifications</span>' +
+                links
+                .filter(l => l.roles.includes(currentUser.role))
+                .map(l => '<a href="' + l.url + '?token=' + token + '" class="nav-link"><span class="nav-icon">' + l.icon + '</span> ' + l.name + '</a>')
+                .join('');
+        }
+
+        function goToHub() {
+            window.location.href = 'http://localhost:8001';
         }
 
         function logout() {

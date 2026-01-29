@@ -36,111 +36,149 @@ async def home():
     <title>ProctorWise - Admin Dashboard</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; padding: 20px; color: #fff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding-top: 80px; padding-left: 20px; padding-right: 20px; padding-bottom: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 15px; backdrop-filter: blur(10px); }
-        .header h1 { color: #fff; font-size: 24px; }
+
+        /* Navbar */
+        .navbar { position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255,255,255,0.98); box-shadow: 0 2px 20px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; z-index: 1000; }
+        .navbar-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #333; font-weight: bold; font-size: 18px; }
+        .navbar-brand:hover { color: #667eea; }
+        .navbar-brand .logo { font-size: 24px; }
+        .navbar-nav { display: flex; align-items: center; gap: 8px; }
+        .nav-link { padding: 8px 16px; border-radius: 8px; text-decoration: none; color: #555; font-size: 14px; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+        .nav-link:hover { background: #f0f0f0; color: #333; }
+        .nav-link.active { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+        .nav-link .nav-icon { font-size: 16px; }
+        .navbar-user { display: flex; align-items: center; gap: 12px; }
+        .user-name { color: #333; font-size: 14px; }
+
+        /* Notification Bell */
+        .notif-bell { position: relative; cursor: pointer; font-size: 20px; padding: 8px; border-radius: 50%; transition: background 0.2s; text-decoration: none; }
+        .notif-bell:hover { background: #f0f0f0; }
+        .notif-badge { position: absolute; top: 2px; right: 2px; background: #e94560; color: white; font-size: 10px; font-weight: bold; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .notif-badge.hidden { display: none; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .header h1 { color: #333; font-size: 24px; }
         .user-info { display: flex; align-items: center; gap: 15px; }
         .btn-logout { padding: 8px 16px; background: #e94560; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
-        .btn-refresh { padding: 8px 16px; background: rgba(255,255,255,0.2); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
-        .btn-refresh:hover { background: rgba(255,255,255,0.3); }
+        .btn-refresh { padding: 8px 16px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+        .btn-refresh:hover { background: #e0e0e0; }
         .btn-refresh.loading svg { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
         /* KPI Cards */
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .kpi-card { background: rgba(255,255,255,0.1); padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); transition: transform 0.2s; }
-        .kpi-card:hover { transform: translateY(-5px); }
+        .kpi-card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
         .kpi-icon { font-size: 32px; margin-bottom: 10px; }
-        .kpi-value { font-size: 36px; font-weight: bold; color: #fff; }
-        .kpi-label { font-size: 14px; color: rgba(255,255,255,0.7); margin-top: 5px; }
-        .kpi-card.users { border-left: 4px solid #4facfe; }
-        .kpi-card.exams { border-left: 4px solid #00f2fe; }
-        .kpi-card.submissions { border-left: 4px solid #43e97b; }
-        .kpi-card.sessions { border-left: 4px solid #fa709a; }
-        .kpi-card.anomalies { border-left: 4px solid #fee140; }
-        .kpi-card.active { border-left: 4px solid #f093fb; }
+        .kpi-value { font-size: 36px; font-weight: bold; color: #333; }
+        .kpi-label { font-size: 14px; color: #666; margin-top: 5px; }
+        .kpi-card.users { border-left: 4px solid #667eea; }
+        .kpi-card.exams { border-left: 4px solid #764ba2; }
+        .kpi-card.submissions { border-left: 4px solid #11998e; }
+        .kpi-card.sessions { border-left: 4px solid #e74c3c; }
+        .kpi-card.anomalies { border-left: 4px solid #f39c12; }
+        .kpi-card.active { border-left: 4px solid #27ae60; }
 
         /* Alerts */
         .alerts-container { margin-bottom: 20px; }
-        .alert { padding: 15px 20px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
-        .alert-warning { background: rgba(254, 225, 64, 0.2); border: 1px solid #fee140; }
-        .alert-critical { background: rgba(233, 69, 96, 0.2); border: 1px solid #e94560; }
-        .alert-error { background: rgba(255, 0, 0, 0.2); border: 1px solid #ff0000; }
+        .alert { padding: 15px 20px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; background: white; }
+        .alert-warning { border-left: 4px solid #f39c12; }
+        .alert-critical { border-left: 4px solid #e94560; }
+        .alert-error { border-left: 4px solid #c0392b; }
         .alert-icon { font-size: 20px; }
-        .alert-message { flex: 1; }
+        .alert-message { flex: 1; color: #333; }
 
         /* System Health */
         .health-grid { display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 30px; }
-        .health-item { display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: rgba(255,255,255,0.1); border-radius: 8px; }
+        .health-item { display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); color: #333; }
         .health-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .health-dot.healthy { background: #43e97b; box-shadow: 0 0 10px #43e97b; }
-        .health-dot.unhealthy { background: #e94560; box-shadow: 0 0 10px #e94560; }
+        .health-dot.healthy { background: #27ae60; box-shadow: 0 0 8px #27ae60; }
+        .health-dot.unhealthy { background: #e94560; box-shadow: 0 0 8px #e94560; }
         .health-dot.unknown { background: #888; }
 
         /* Cards */
-        .card { background: rgba(255,255,255,0.1); padding: 25px; border-radius: 15px; backdrop-filter: blur(10px); margin-bottom: 20px; }
-        .card h2 { color: #fff; margin-bottom: 20px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
-        .card h2 .badge { font-size: 12px; padding: 4px 10px; background: rgba(255,255,255,0.2); border-radius: 12px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card h2 { color: #333; margin-bottom: 20px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #667eea; padding-bottom: 10px; }
+        .card h2 .badge { font-size: 12px; padding: 4px 10px; background: #667eea; color: white; border-radius: 12px; }
 
         /* Grid layout */
         .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; }
 
         /* Tables */
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
-        th { color: rgba(255,255,255,0.7); font-weight: 500; font-size: 13px; text-transform: uppercase; }
-        td { color: #fff; }
-        tr:hover { background: rgba(255,255,255,0.05); }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { color: #666; font-weight: 600; font-size: 13px; text-transform: uppercase; background: #f8f9fa; }
+        td { color: #333; }
+        tr:hover { background: #f8f9fa; }
 
         /* Severity badges */
         .severity { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-        .severity-low { background: rgba(67, 233, 123, 0.3); color: #43e97b; }
-        .severity-medium { background: rgba(254, 225, 64, 0.3); color: #fee140; }
-        .severity-high { background: rgba(250, 112, 154, 0.3); color: #fa709a; }
-        .severity-critical { background: rgba(233, 69, 96, 0.3); color: #e94560; }
+        .severity-low { background: #d4edda; color: #155724; }
+        .severity-medium { background: #fff3cd; color: #856404; }
+        .severity-high { background: #ffe0b2; color: #e65100; }
+        .severity-critical { background: #f8d7da; color: #721c24; }
 
         /* Status badges */
         .status { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-        .status-graded { background: rgba(67, 233, 123, 0.3); color: #43e97b; }
-        .status-submitted { background: rgba(79, 172, 254, 0.3); color: #4facfe; }
-        .status-pending { background: rgba(254, 225, 64, 0.3); color: #fee140; }
+        .status-graded { background: #d4edda; color: #155724; }
+        .status-submitted { background: #cce5ff; color: #004085; }
+        .status-pending { background: #fff3cd; color: #856404; }
 
         /* Top performers */
-        .performer { display: flex; align-items: center; gap: 15px; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .performer { display: flex; align-items: center; gap: 15px; padding: 12px 0; border-bottom: 1px solid #e0e0e0; }
         .performer:last-child { border-bottom: none; }
-        .performer-rank { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
+        .performer-rank { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; color: white; }
         .rank-1 { background: linear-gradient(135deg, #f5af19, #f12711); }
         .rank-2 { background: linear-gradient(135deg, #c0c0c0, #808080); }
         .rank-3 { background: linear-gradient(135deg, #cd7f32, #8b4513); }
-        .rank-other { background: rgba(255,255,255,0.2); }
+        .rank-other { background: #e0e0e0; color: #333; }
         .performer-info { flex: 1; }
-        .performer-name { font-weight: 500; }
-        .performer-stats { font-size: 12px; color: rgba(255,255,255,0.6); }
-        .performer-score { font-size: 20px; font-weight: bold; color: #43e97b; }
+        .performer-name { font-weight: 500; color: #333; }
+        .performer-stats { font-size: 12px; color: #666; }
+        .performer-score { font-size: 20px; font-weight: bold; color: #27ae60; }
 
         /* Export buttons */
-        .export-btn { padding: 6px 12px; background: rgba(255,255,255,0.2); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 10px; }
-        .export-btn:hover { background: rgba(255,255,255,0.3); }
+        .export-btn { padding: 6px 12px; background: #667eea; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; margin-left: 10px; }
+        .export-btn:hover { background: #764ba2; }
 
         /* Login prompt */
-        .login-prompt { text-align: center; padding: 60px 20px; }
-        .login-prompt a { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; text-decoration: none; border-radius: 10px; font-size: 18px; }
+        .login-prompt { text-align: center; padding: 60px 20px; background: white; }
+        .login-prompt h2 { color: #333; border: none; }
+        .login-prompt a { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 10px; font-size: 18px; }
         .hidden { display: none; }
-        .role-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; background: #e94560; }
+        .role-badge { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; background: #fce4ec; color: #c2185b; }
 
         /* Loading */
         .loading-spinner { display: flex; justify-content: center; align-items: center; padding: 40px; }
-        .loading-spinner::after { content: ""; width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2); border-top-color: #4facfe; border-radius: 50%; animation: spin 1s linear infinite; }
+        .loading-spinner::after { content: ""; width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
 
         /* Empty state */
-        .empty-state { text-align: center; padding: 40px; color: rgba(255,255,255,0.5); }
+        .empty-state { text-align: center; padding: 40px; color: #888; }
 
         /* Timestamp */
-        .timestamp { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 15px; text-align: right; }
+        .timestamp { font-size: 12px; color: #888; margin-top: 15px; text-align: right; }
     </style>
 </head>
 <body>
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar" style="display: none;">
+        <a href="http://localhost:8001" class="navbar-brand" onclick="goToHub(); return false;">
+            <span class="logo">🎓</span>
+            ProctorWise
+        </a>
+        <div class="navbar-nav" id="navLinks"></div>
+        <div class="navbar-user">
+            <span id="navUserName" class="user-name"></span>
+            <span id="navUserRole" class="role-badge"></span>
+            <a href="#" id="notifBellLink" class="notif-bell" title="Notifications">
+                🔔
+                <span class="notif-badge hidden" id="notifBadge">0</span>
+            </a>
+            <button class="btn-logout" onclick="logout()">Deconnexion</button>
+        </div>
+    </nav>
+
     <div class="container">
         <div id="loginRequired" class="card login-prompt">
             <h2>Acces Admin Requis</h2>
@@ -150,18 +188,13 @@ async def home():
 
         <div id="mainApp" class="hidden">
             <div class="header">
-                <h1>Dashboard Admin</h1>
-                <div class="user-info">
-                    <button class="btn-refresh" onclick="loadDashboard()" id="refreshBtn">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
-                        </svg>
-                        Actualiser
-                    </button>
-                    <span id="userName"></span>
-                    <span id="userRole" class="role-badge"></span>
-                    <button class="btn-logout" onclick="logout()">Deconnexion</button>
-                </div>
+                <h1>📊 Dashboard Admin</h1>
+                <button class="btn-refresh" onclick="loadDashboard()" id="refreshBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                    </svg>
+                    Actualiser
+                </button>
             </div>
 
             <!-- Alerts -->
@@ -318,13 +351,62 @@ async def home():
         function showMainApp() {
             document.getElementById('loginRequired').classList.add('hidden');
             document.getElementById('mainApp').classList.remove('hidden');
-            document.getElementById('userName').textContent = currentUser.name;
-            document.getElementById('userRole').textContent = 'Admin';
+            document.getElementById('navbar').style.display = 'flex';
+
+            // Update navbar user info
+            document.getElementById('navUserName').textContent = currentUser.name;
+            const roleEl = document.getElementById('navUserRole');
+            roleEl.textContent = 'Admin';
+            roleEl.className = 'role-badge';
+
+            renderNavLinks();
             loadDashboard();
             // Start auto-refresh only once
             if (!refreshInterval) {
                 refreshInterval = setInterval(loadDashboard, 60000); // Every 60 seconds
             }
+        }
+
+        function renderNavLinks() {
+            const nav = document.getElementById('navLinks');
+            const token = localStorage.getItem('token');
+            const links = [
+                { name: 'Examens', icon: '📝', url: 'http://localhost:8000', active: false, roles: ['student', 'teacher', 'admin'] },
+                { name: 'Monitoring', icon: '👁️', url: 'http://localhost:8003', active: false, roles: ['proctor', 'admin'] },
+                { name: 'Analytics', icon: '📊', url: 'http://localhost:8006', active: true, roles: ['admin'] }
+            ];
+            nav.innerHTML = links
+                .filter(l => l.roles.includes(currentUser.role))
+                .map(l => '<a href="' + l.url + '?token=' + token + '" class="nav-link ' + (l.active ? 'active' : '') + '"><span class="nav-icon">' + l.icon + '</span> ' + l.name + '</a>')
+                .join('');
+            loadNotificationCount();
+        }
+
+        async function loadNotificationCount() {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch('http://localhost:8005/notifications/user/' + currentUser.user_id);
+                if (res.ok) {
+                    const notifications = await res.json();
+                    const now = new Date();
+                    const recentCount = notifications.filter(n => {
+                        const created = new Date(n.created_at);
+                        return (now - created) / (1000 * 60 * 60) < 24;
+                    }).length;
+                    const badge = document.getElementById('notifBadge');
+                    if (recentCount > 0) {
+                        badge.textContent = recentCount > 99 ? '99+' : recentCount;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            } catch (e) { console.log('Could not load notifications'); }
+            document.getElementById('notifBellLink').href = 'http://localhost:8005?token=' + token;
+        }
+
+        function goToHub() {
+            window.location.href = 'http://localhost:8001';
         }
 
         function logout() {
@@ -512,21 +594,21 @@ async def home():
             const container = document.getElementById('todayStats');
             const html = `
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;">
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 10px;">
-                        <div style="font-size: 32px; font-weight: bold; color: #4facfe;">${metrics.exams_today || 0}</div>
-                        <div style="color: rgba(255,255,255,0.6); margin-top: 5px;">Examens aujourd'hui</div>
+                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <div style="font-size: 32px; font-weight: bold; color: #667eea;">${metrics.exams_today || 0}</div>
+                        <div style="color: #666; margin-top: 5px;">Examens aujourd'hui</div>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 10px;">
-                        <div style="font-size: 32px; font-weight: bold; color: #43e97b;">${metrics.submissions_today || 0}</div>
-                        <div style="color: rgba(255,255,255,0.6); margin-top: 5px;">Soumissions aujourd'hui</div>
+                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <div style="font-size: 32px; font-weight: bold; color: #27ae60;">${metrics.submissions_today || 0}</div>
+                        <div style="color: #666; margin-top: 5px;">Soumissions aujourd'hui</div>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 10px;">
-                        <div style="font-size: 32px; font-weight: bold; color: #fa709a;">${metrics.anomalies_today || 0}</div>
-                        <div style="color: rgba(255,255,255,0.6); margin-top: 5px;">Anomalies aujourd'hui</div>
+                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <div style="font-size: 32px; font-weight: bold; color: #e74c3c;">${metrics.anomalies_today || 0}</div>
+                        <div style="color: #666; margin-top: 5px;">Anomalies aujourd'hui</div>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 10px;">
-                        <div style="font-size: 32px; font-weight: bold; color: #fee140;">${parseFloat(metrics.average_anomalies_per_exam || 0).toFixed(1)}</div>
-                        <div style="color: rgba(255,255,255,0.6); margin-top: 5px;">Anomalies/Examen (moy)</div>
+                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                        <div style="font-size: 32px; font-weight: bold; color: #f39c12;">${parseFloat(metrics.average_anomalies_per_exam || 0).toFixed(1)}</div>
+                        <div style="color: #666; margin-top: 5px;">Anomalies/Examen (moy)</div>
                     </div>
                 </div>
             `;
