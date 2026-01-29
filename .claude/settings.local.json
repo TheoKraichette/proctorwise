@@ -21,7 +21,8 @@
       "Bash(fi)",
       "Bash(done)",
       "Bash(python -c:*)",
-      "Bash(node -c main.py)"
+      "Bash(node -c main.py)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)"
     ]
   }
 }
