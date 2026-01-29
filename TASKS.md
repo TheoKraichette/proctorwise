@@ -16,7 +16,7 @@
 | CorrectionService | Backend OK, integre via UI Reservation, Auto-grading OK | 100% |
 | NotificationService | Backend OK, Email+WS OK, Kafka OK, UI OK | 100% |
 | MonitoringService | Backend OK, WebSocket OK, **UI OK**, ML degrade | 90% |
-| AnalyticsService | Backend OK, PDF/CSV OK, **UI manquante** | 80% |
+| AnalyticsService | Backend OK, PDF/CSV OK, UI OK (Admin Dashboard) | 100% |
 | Spark Jobs | 3 jobs implementes, non testes | 90% |
 | Airflow DAGs | 4 DAGs configures, non testes | 95% |
 | ML (YOLO/MediaPipe) | Code ecrit, **YOLO non fonctionnel** (modeles .pt manquants) | 50% |
