@@ -734,9 +734,11 @@ async def home():
             const duration = parseInt(examSelect.options[examSelect.selectedIndex].dataset.duration) || 60;
             const startDate = new Date(selectedSlot);
             const endDate = new Date(startDate.getTime() + duration * 60000);
+            const pad = n => String(n).padStart(2, '0');
+            const endISO = endDate.getFullYear() + '-' + pad(endDate.getMonth()+1) + '-' + pad(endDate.getDate()) + 'T' + pad(endDate.getHours()) + ':' + pad(endDate.getMinutes()) + ':' + pad(endDate.getSeconds());
             const res = await fetch('/reservations/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: startDate.toISOString(), end_time: endDate.toISOString() })
+                body: JSON.stringify({ user_id: currentUser.user_id, exam_id: examId, start_time: selectedSlot, end_time: endISO })
             });
             if (res.ok) { showMessage('reservationMessage', 'Reservation creee!'); document.getElementById('reservationForm').reset(); loadStudentReservations(); }
             else { const data = await res.json(); showMessage('reservationMessage', data.detail || 'Erreur', true); }
@@ -1082,7 +1084,7 @@ async def home():
                 for (const st of slotTimes) {
                     await fetch('/exams/' + exam.exam_id + '/slots', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ start_time: new Date(st).toISOString() })
+                        body: JSON.stringify({ start_time: st })
                     });
                 }
                 const slotMsg = slotTimes.length > 0 ? ' avec ' + slotTimes.length + ' creneau(x)' : '';
@@ -1158,7 +1160,7 @@ async def home():
             if (!timeInput.value) { alert('Veuillez choisir une date et heure'); return; }
             await fetch('/exams/' + slotManagerExamId + '/slots', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ start_time: new Date(timeInput.value).toISOString() })
+                body: JSON.stringify({ start_time: timeInput.value })
             });
             timeInput.value = '';
             loadExistingSlots();
