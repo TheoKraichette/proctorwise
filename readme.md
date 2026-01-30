@@ -253,4 +253,4 @@ docker exec -it proctorwise-mariadb mysql -uproctorwise -pproctorwise_secret
 
 ## Licence
 
-Projet academique - Tous droits reserves.
+Proctorwise Team - Théo KRAICHETTE, Boubaker OMRI , Ilyas MAALAL - Tous droits reserves.
