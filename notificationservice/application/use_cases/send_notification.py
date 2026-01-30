@@ -6,6 +6,7 @@ from domain.entities.notification import Notification
 from application.interfaces.notification_repository import NotificationRepository
 from application.interfaces.email_sender import EmailSender
 from application.interfaces.push_sender import RealtimeSender
+from infrastructure.services.user_service_client import UserServiceClient
 
 
 class SendNotification:
@@ -18,6 +19,7 @@ class SendNotification:
         self.repository = repository
         self.email_sender = email_sender
         self.push_sender = push_sender
+        self.user_client = UserServiceClient()
 
     async def execute(
         self,
@@ -50,21 +52,29 @@ class SendNotification:
         success = False
         errors = []
 
-        if channel in ["email", "both"] and preference and preference.email_enabled:
+        # Get user email from UserService for email notifications
+        email_enabled = preference.email_enabled if preference else True
+        if channel in ["email", "both"] and email_enabled:
             try:
-                email_success = await self.email_sender.send(
-                    preference.email,
-                    subject,
-                    body
-                )
-                if email_success:
-                    success = True
+                user = await self.user_client.get_user(user_id)
+                user_email = user.get("email") if user else None
+                if user_email:
+                    email_success = await self.email_sender.send(
+                        user_email,
+                        subject,
+                        body
+                    )
+                    if email_success:
+                        success = True
+                    else:
+                        errors.append("Email delivery failed")
                 else:
-                    errors.append("Email delivery failed")
+                    errors.append("User email not found")
             except Exception as e:
                 errors.append(f"Email error: {str(e)}")
 
-        if channel in ["websocket", "both"] and preference and preference.websocket_enabled:
+        websocket_enabled = preference.websocket_enabled if preference else True
+        if channel in ["websocket", "both", "push"] and websocket_enabled:
             try:
                 push_success = await self.push_sender.send(
                     user_id,

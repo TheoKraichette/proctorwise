@@ -112,31 +112,28 @@ class SQLAlchemyNotificationRepository(NotificationRepository):
             return None
         return UserPreference(
             user_id=result.user_id,
-            email=result.email,
-            email_enabled=result.email_enabled,
-            websocket_enabled=result.websocket_enabled,
+            email_enabled=result.email_notifications,
+            websocket_enabled=result.push_notifications,
             notification_types=result.notification_types or [],
-            reminder_hours_before=result.reminder_hours_before or [24, 1]
+            preference_id=result.preference_id
         )
 
     def save_user_preference(self, preference: UserPreference) -> None:
+        import uuid
         session = SessionLocal()
         existing = session.query(UserPreferenceModel).filter_by(user_id=preference.user_id).first()
 
         if existing:
-            existing.email = preference.email
-            existing.email_enabled = preference.email_enabled
-            existing.websocket_enabled = preference.websocket_enabled
+            existing.email_notifications = preference.email_enabled
+            existing.push_notifications = preference.websocket_enabled
             existing.notification_types = preference.notification_types
-            existing.reminder_hours_before = preference.reminder_hours_before
         else:
             db_pref = UserPreferenceModel(
+                preference_id=preference.preference_id or str(uuid.uuid4()),
                 user_id=preference.user_id,
-                email=preference.email,
-                email_enabled=preference.email_enabled,
-                websocket_enabled=preference.websocket_enabled,
-                notification_types=preference.notification_types,
-                reminder_hours_before=preference.reminder_hours_before
+                email_notifications=preference.email_enabled,
+                push_notifications=preference.websocket_enabled,
+                notification_types=preference.notification_types
             )
             session.add(db_pref)
 

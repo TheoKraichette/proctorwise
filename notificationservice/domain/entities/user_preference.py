@@ -1,11 +1,10 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
 class UserPreference:
     user_id: str
-    email: str
     email_enabled: bool = True
     websocket_enabled: bool = True
     notification_types: List[str] = field(default_factory=lambda: [
@@ -14,4 +13,4 @@ class UserPreference:
         "grade_ready",
         "high_risk_alert"
     ])
-    reminder_hours_before: List[int] = field(default_factory=lambda: [24, 1])
+    preference_id: Optional[str] = None

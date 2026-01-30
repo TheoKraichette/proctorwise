@@ -23,9 +23,10 @@ class NotificationModel(Base):
 class UserPreferenceModel(Base):
     __tablename__ = "user_preferences"
 
-    user_id = Column(String(36), primary_key=True)
-    email = Column(String(255), nullable=False)
-    email_enabled = Column(Boolean, default=True)
-    websocket_enabled = Column(Boolean, default=True)
+    preference_id = Column(String(36), primary_key=True)
+    user_id = Column(String(36), nullable=False, unique=True, index=True)
+    email_notifications = Column(Boolean, default=True)
+    push_notifications = Column(Boolean, default=True)
     notification_types = Column(JSON, nullable=True)
-    reminder_hours_before = Column(JSON, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)

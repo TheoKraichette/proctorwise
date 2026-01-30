@@ -33,7 +33,16 @@
       "Bash(git push:*)",
       "Bash(test:*)",
       "Bash(do grep -c \"_PUBLIC_HOST\" $s/main.py)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(MSYS_NO_PATHCONV=1 openssl req:*)",
+      "Bash(bash:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmMGU3NmFmNy0yYzBjLTRhMjMtOGQ4Ni03ZDRhNjUxNzU4NWUiLCJ1c2VyX2lkIjoiZjBlNzZhZjctMmMwYy00YTIzLThkODYtN2Q0YTY1MTc1ODVlIiwibmFtZSI6IkJvYiBUZWFjaGVyIiwiZW1haWwiOiJib2JAdGVhY2hlci5jb20iLCJyb2xlIjoidGVhY2hlciIsImV4cCI6MTc2OTg1Mjk0NH0.LPk4Ac_oNFwcu-byOW-98vP9ZXXsKCVWGn7CInE0LO8\")",
+      "Bash(EXAM1_ID=\"ffddc8c6-928c-438c-8e00-e6da00d83fbe\")",
+      "Bash(__NEW_LINE_cb702131c6cefc83__ echo \"Adding questions for Exam 1 \\(Maths\\)...\")",
+      "Bash(EXAM2_ID=\"640e5977-8830-4f8f-9266-5f400afc1a7a\":*)",
+      "Bash(EXAM3_ID=\"7e6323fd-3eb3-448c-b837-f96056648a24\")",
+      "Bash(__NEW_LINE_e7e3cf007ceda07c__ echo \"Adding questions for Exam 2 \\(Info\\)...\")",
+      "Bash(__NEW_LINE_e7e3cf007ceda07c__ echo \"\")"
     ]
   }
 }

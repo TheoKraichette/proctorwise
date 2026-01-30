@@ -19,8 +19,6 @@ class NotificationResponse(BaseModel):
 
 class UserPreferenceResponse(BaseModel):
     user_id: str
-    email: str
     email_enabled: bool
     websocket_enabled: bool
     notification_types: List[str]
-    reminder_hours_before: List[int]

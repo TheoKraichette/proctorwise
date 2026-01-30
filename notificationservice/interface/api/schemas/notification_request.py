@@ -12,8 +12,6 @@ class SendNotificationRequest(BaseModel):
 
 
 class UpdatePreferenceRequest(BaseModel):
-    email: str
     email_enabled: bool = True
     websocket_enabled: bool = True
     notification_types: List[str] = ["exam_reminder", "anomaly_detected", "grade_ready", "high_risk_alert"]
-    reminder_hours_before: List[int] = [24, 1]

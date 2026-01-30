@@ -101,11 +101,9 @@ def get_user_preferences(user_id: str):
 
     return UserPreferenceResponse(
         user_id=preference.user_id,
-        email=preference.email,
         email_enabled=preference.email_enabled,
         websocket_enabled=preference.websocket_enabled,
-        notification_types=preference.notification_types,
-        reminder_hours_before=preference.reminder_hours_before
+        notification_types=preference.notification_types
     )
 
 
@@ -113,20 +111,16 @@ def get_user_preferences(user_id: str):
 def update_user_preferences(user_id: str, request: UpdatePreferenceRequest):
     preference = UserPreference(
         user_id=user_id,
-        email=request.email,
         email_enabled=request.email_enabled,
         websocket_enabled=request.websocket_enabled,
-        notification_types=request.notification_types,
-        reminder_hours_before=request.reminder_hours_before
+        notification_types=request.notification_types
     )
 
     repo.save_user_preference(preference)
 
     return UserPreferenceResponse(
         user_id=preference.user_id,
-        email=preference.email,
         email_enabled=preference.email_enabled,
         websocket_enabled=preference.websocket_enabled,
-        notification_types=preference.notification_types,
-        reminder_hours_before=preference.reminder_hours_before
+        notification_types=preference.notification_types
     )
